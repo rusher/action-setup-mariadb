@@ -1,0 +1,139 @@
+name: action-setup-mariadb
+
+description: 'Setup MariaDB server action. Server can be community or enterprise, either local or using container.'
+
+branding:
+  icon: 'database'
+  color: 'red'
+
+inputs:
+  tag:
+    description: 'Valid image tag depending on registry'
+    default: ''
+    required: false
+
+  local:
+    description: 'Local (compare to docker) installation'
+    default: ''
+    required: false
+
+  port:
+    description: 'Exposed port for database connections.'
+    default: ''
+    required: false
+
+  registry:
+    description: 'registry for example "docker.io/mariadb", "quay.io/mariadb-foundation/mariadb-devel", or "docker.mariadb.com/enterprise-server"'
+    default: ''
+    required: false
+
+  registry-user:
+    description: 'registry docker username'
+    default: ''
+    required: false
+
+  registry-password:
+    description: 'registry docker password'
+    default: ''
+    required: false
+
+  container-runtime:
+    description: 'Container runtime to use (docker or podman).'
+    default: ''
+    required: false
+
+  root-password:
+    description: 'Password for root user'
+    required: false
+
+  allow-empty-root-password:
+    description: 'permits empty root password'
+    required: false
+
+  user:
+    description: 'Create a mariadb user'
+    required: false
+
+  password:
+    description: 'Define a password for mariadb user'
+    required: false
+
+  database:
+    description: 'Initial database'
+    required: false
+
+  conf-script-folder:
+    description: 'additional configuration directory'
+    required: false
+
+  additional-conf:
+    description: 'additional configuration'
+    required: false
+
+  init-script-folder:
+    description: 'initialized directory'
+    required: false
+
+outputs:
+  database-type:
+    description: 'Type of database setup: "local" for native installation or "container" for Docker/Podman'
+    value: ${{ steps.setup-docker.outputs.database-type || steps.setup-local.outputs.database-type || steps.setup-windows.outputs.database-type }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup database using docker/podman
+      id: setup-docker
+      shell: bash
+      run: "${{ github.action_path }}/setup-docker.sh"
+      if: (inputs.local != '1' && inputs.local != 'true' && runner.os == 'Linux') || inputs.registry != ''
+      env:
+        SETUP_DATABASE_TYPE: 'container'
+        SETUP_TAG: ${{ inputs.tag }}
+        SETUP_PORT: ${{ inputs.port }}
+        SETUP_REGISTRY: ${{ inputs.registry }}
+        SETUP_REGISTRY_USER: ${{ inputs.registry-user }}
+        SETUP_REGISTRY_PASSWORD: ${{ inputs.registry-password }}
+        SETUP_CONTAINER_RUNTIME: ${{ inputs.container-runtime }}
+        SETUP_ROOT_PASSWORD: ${{ inputs.root-password }}
+        SETUP_ALLOW_EMPTY_ROOT_PASSWORD: ${{ inputs.allow-empty-root-password }}
+        SETUP_USER: ${{ inputs.user }}
+        SETUP_PASSWORD: ${{ inputs.password }}
+        SETUP_DATABASE: ${{ inputs.database }}
+        SETUP_CONF_SCRIPT_FOLDER: ${{ inputs.conf-script-folder }}
+        SETUP_ADDITIONAL_CONF: ${{ inputs.additional-conf }}
+        SETUP_INIT_SCRIPT_FOLDER: ${{ inputs.init-script-folder }}
+    - name: Setup local macos / linux database
+      id: setup-local
+      shell: bash
+      run: "${{ github.action_path }}/setup-local.sh"
+      if: (inputs.local == '1' || inputs.local == 'true' || runner.os == 'MacOS') && inputs.registry == ''
+      env:
+        SETUP_DATABASE_TYPE: 'local'
+        SETUP_TAG: ${{ inputs.tag }}
+        SETUP_PORT: ${{ inputs.port }}
+        SETUP_ROOT_PASSWORD: ${{ inputs.root-password }}
+        SETUP_ALLOW_EMPTY_ROOT_PASSWORD: ${{ inputs.allow-empty-root-password }}
+        SETUP_USER: ${{ inputs.user }}
+        SETUP_PASSWORD: ${{ inputs.password }}
+        SETUP_DATABASE: ${{ inputs.database }}
+        SETUP_CONF_SCRIPT_FOLDER: ${{ inputs.conf-script-folder }}
+        SETUP_ADDITIONAL_CONF: ${{ inputs.additional-conf }}
+        SETUP_INIT_SCRIPT_FOLDER: ${{ inputs.init-script-folder }}
+    - name: Setup local windows database
+      id: setup-windows
+      shell: cmd
+      run: "${{ github.action_path }}\\setup-windows.bat"
+      if: runner.os == 'Windows' && inputs.registry == ''
+      env:
+        SETUP_DATABASE_TYPE: 'local'
+        SETUP_TAG: ${{ inputs.tag }}
+        SETUP_PORT: ${{ inputs.port }}
+        SETUP_ROOT_PASSWORD: ${{ inputs.root-password }}
+        SETUP_ALLOW_EMPTY_ROOT_PASSWORD: ${{ inputs.allow-empty-root-password }}
+        SETUP_USER: ${{ inputs.user }}
+        SETUP_PASSWORD: ${{ inputs.password }}
+        SETUP_DATABASE: ${{ inputs.database }}
+        SETUP_CONF_SCRIPT_FOLDER: ${{ inputs.conf-script-folder }}
+        SETUP_ADDITIONAL_CONF: ${{ inputs.additional-conf }}
+        SETUP_INIT_SCRIPT_FOLDER: ${{ inputs.init-script-folder }}

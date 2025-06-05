@@ -1,0 +1,75 @@
+{
+  "include": [
+    {
+      "name": "MariaDB 10.11 - windows",
+      "os": "windows-latest",
+      "db-type": "community",
+      "db-tag": "10.11"
+    },
+    {
+      "name": "MariaDB 10.11 - macos",
+      "os": "macos-latest",
+      "db-type": "community",
+      "db-tag": "10.11",
+      "continue-on-error": true
+    },
+    {
+      "name": "MariaDB 10.5",
+      "os": "ubuntu-latest",
+      "db-type": "community",
+      "db-tag": "10.5"
+    },
+    {
+      "name": "MariaDB 10.6",
+      "os": "ubuntu-latest",
+      "db-type": "community",
+      "db-tag": "10.6"
+    },
+    {
+      "name": "MariaDB 10.11",
+      "os": "ubuntu-latest",
+      "db-type": "community",
+      "db-tag": "10.11",
+      "additional-conf": "--max_allowed_packet=40M --innodb_log_file_size=400M"
+    },
+    {
+      "name": "MariaDB 11.4",
+      "os": "ubuntu-latest",
+      "db-type": "community",
+      "db-tag": "11.4"
+    },
+    {
+      "name": "MariaDB 10.5 ES",
+      "os": "ubuntu-latest",
+      "db-type": "enterprise",
+      "db-tag": "10.5",
+      "run-condition": "${{ github.event_name == 'pull_request' }}"
+    },
+    {
+      "name": "MariaDB 10.6 ES",
+      "os": "ubuntu-latest",
+      "db-type": "enterprise",
+      "db-tag": "10.6",
+      "run-condition": "${{ github.event_name == 'pull_request' }}"
+    },
+    {
+      "name": "MariaDB 11.4 ES",
+      "os": "ubuntu-latest",
+      "db-type": "enterprise",
+      "db-tag": "11.4",
+      "run-condition": "${{ github.event_name == 'pull_request' }}"
+    },
+    {
+      "name": "MySQL 8.0",
+      "os": "ubuntu-latest",
+      "db-type": "mysql",
+      "db-tag": "8.0"
+    },
+    {
+      "name": "MySQL 8.4",
+      "os": "ubuntu-latest",
+      "db-type": "mysql",
+      "db-tag": "8.4"
+    }
+  ]
+}
