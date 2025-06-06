@@ -1,13 +1,13 @@
 {
   "include": [
     {
-      "name": "MariaDB 10.11 - windows",
+      "name": "MariaDB 10.11 (local) - windows",
       "os": "windows-latest",
       "db-type": "community",
       "db-tag": "10.11"
     },
     {
-      "name": "MariaDB 10.11 - macos",
+      "name": "MariaDB 10.11 (local) - macos",
       "os": "macos-latest",
       "db-type": "community",
       "db-tag": "10.11",
