@@ -168,17 +168,48 @@ echo "::endgroup::"
 
 ###############################################################################
 
-echo "🔎 Container logs:"
-"${CONTAINER_RUNTIME}" logs mariadb
-
 if [[ "${exit_code}" == "0" ]]; then
-    echo "::group::✅ Database is ready!"
-    # Export database type for subsequent steps
-    echo "SETUP_DATABASE_TYPE=container" >> $GITHUB_ENV
-    echo "✅ Database type exported: container"
-    # Set output variable for the action
-    echo "database-type=container" >> $GITHUB_OUTPUT
+    echo "⏳ Waiting for database to be ready..."
+    
+    # Wait for health check to pass or timeout after 120 seconds
+    timeout=120
+    elapsed=0
+    while [[ $elapsed -lt $timeout ]]; do
+        health_status=$("${CONTAINER_RUNTIME}" inspect mariadb --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
+        if [[ "$health_status" == "healthy" ]]; then
+            echo "✅ Health check passed!"
+            break
+        elif [[ "$health_status" == "unhealthy" ]]; then
+            echo "❌ Health check failed!"
+            EXIT_VALUE=1
+            break
+        fi
+        sleep 2
+        elapsed=$((elapsed + 2))
+        echo "⏳ Waiting... (${elapsed}s/${timeout}s) - Status: ${health_status}"
+    done
+    
+    if [[ $elapsed -ge $timeout && "$health_status" != "healthy" ]]; then
+        echo "⏰ Timeout reached waiting for database"
+        EXIT_VALUE=1
+    fi
+    
+    echo "🔎 Container logs:"
+    "${CONTAINER_RUNTIME}" logs mariadb
+    
+    if [[ "${EXIT_VALUE}" != "1" ]]; then
+        echo "::group::✅ Database is ready!"
+        # Export database type for subsequent steps
+        echo "SETUP_DATABASE_TYPE=container" >> $GITHUB_ENV
+        echo "✅ Database type exported: container"
+        # Set output variable for the action
+        echo "database-type=container" >> $GITHUB_OUTPUT
+    else
+        echo "::group::❌ Database failed to start or become healthy."
+    fi
 else
+    echo "🔎 Container logs:"
+    "${CONTAINER_RUNTIME}" logs mariadb
     echo "::group::❌ Database failed to start on time."
     EXIT_VALUE=1
 fi
