@@ -101,7 +101,7 @@ fi
 # SETUP_SCRIPTS
 if [[ -n "${SETUP_CONF_SCRIPT_FOLDER}" ]]; then
     echo "✅ setup scripts from ${SETUP_CONF_SCRIPT_FOLDER}"
-    CONTAINER_ARGS+=("-v" "${SETUP_SETUP_SCRIPTS}:/etc/mysql/conf.d:ro")
+    CONTAINER_ARGS+=("-v" "${SETUP_CONF_SCRIPT_FOLDER}:/etc/mysql/conf.d:ro")
 fi
 
 # STARTUP_SCRIPTS
