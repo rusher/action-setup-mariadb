@@ -152,11 +152,26 @@ echo "::endgroup::"
 ###############################################################################
 echo "::group::🐳 Running Container"
 
+# Health check configuration
 CONTAINER_ARGS+=("--health-interval" "1s")
 CONTAINER_ARGS+=("--health-timeout" "10s")
 CONTAINER_ARGS+=("--health-retries" "10")
 CONTAINER_ARGS+=("--health-start-period" "60s")
-CONTAINER_ARGS+=("--health-cmd" "\"mysqladmin ping -h localhost --silent\"")
+
+# Set health check command based on authentication setup
+if [[ -n "${SETUP_ROOT_PASSWORD}" ]]; then
+    # Use root with password
+    CONTAINER_ARGS+=("--health-cmd" "\"mysqladmin ping -h localhost -u root -p\$MARIADB_ROOT_PASSWORD --silent\"")
+elif [[ -n "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" && ( "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" == "1" || "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" == "yes" ) ]]; then
+    # Use root with no password
+    CONTAINER_ARGS+=("--health-cmd" "\"mysqladmin ping -h localhost -u root --silent\"")
+elif [[ -n "${SETUP_USER}" && -n "${SETUP_PASSWORD}" ]]; then
+    # Random root password case - use setup user and password
+    CONTAINER_ARGS+=("--health-cmd" "\"mysqladmin ping -h localhost -u \$MARIADB_USER -p\$MARIADB_PASSWORD --silent\"")
+else
+    # Random password case with no setup user - use the health check from the MariaDB container
+    CONTAINER_ARGS+=("--health-cmd" "\"healthcheck.sh --connect --innodb_initialized\"")
+fi
 
 CMD="${CONTAINER_RUNTIME} run -d ${CONTAINER_ARGS[@]} ${CONTAINER_IMAGE} ${MARIADB_ARGS[@]}"
 echo "${CMD}"
@@ -170,6 +185,9 @@ echo "::endgroup::"
 
 if [[ "${exit_code}" == "0" ]]; then
     echo "⏳ Waiting for database to be ready..."
+    
+    # Initial wait before starting health checks
+    sleep 1
     
     # Wait for health check to pass or timeout after 120 seconds
     timeout=120
