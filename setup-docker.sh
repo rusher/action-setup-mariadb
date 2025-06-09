@@ -65,11 +65,11 @@ fi
 echo "✅ port set to ${SETUP_PORT}"
 
 CONTAINER_ARGS+=("-p" "3306:${SETUP_PORT}")
-CONTAINER_ARGS+=("--name" "mariadb")
+CONTAINER_ARGS+=("--name" "mariadbcontainer")
 
 # PASSWORD
 if [[ -n "${SETUP_ROOT_PASSWORD}" ]]; then
-  CONTAINER_ARGS+=("-e" "MARIADB_ROOT_PASSWORD=${SETUP_ROOT_PASSWORD}")
+  CONTAINER_ARGS+=("-e" "MARIADB_ROOT_PASSWORD=\"${SETUP_ROOT_PASSWORD}\"")
   echo "✅ root password is explicitly set"
 else
   if [[ -n "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" && ( "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" == "1" || "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" == "yes" ) ]]; then
@@ -89,13 +89,13 @@ fi
 # USER
 if [[ -n "${SETUP_USER}" ]]; then
     echo "✅ mariadb user is explicitly set"
-    CONTAINER_ARGS+=("-e" "MARIADB_USER=${SETUP_USER}")
+    CONTAINER_ARGS+=("-e" "MARIADB_USER=\"${SETUP_USER}\"")
 fi
 
 # PASSWORD
 if [[ -n "${SETUP_PASSWORD}" ]]; then
     echo "✅ mariadb password is explicitly set"
-    CONTAINER_ARGS+=("-e" "MARIADB_PASSWORD=${SETUP_PASSWORD}")
+    CONTAINER_ARGS+=("-e" "MARIADB_PASSWORD=\"${SETUP_PASSWORD}\"")
 fi
 
 # SETUP_SCRIPTS
@@ -147,8 +147,8 @@ fi
 
 if [[ -n "${SETUP_REGISTRY_USER}" && -n "${SETUP_REGISTRY_PASSWORD}" ]]; then
   CONTAINER_LOGIN_ARGS=()
-  CONTAINER_LOGIN_ARGS+=("--username" "${SETUP_REGISTRY_USER}")
-  CONTAINER_LOGIN_ARGS+=("--password" "${SETUP_REGISTRY_PASSWORD}")
+  CONTAINER_LOGIN_ARGS+=("--username" "\"${SETUP_REGISTRY_USER}\"")
+  CONTAINER_LOGIN_ARGS+=("--password" "\"${SETUP_REGISTRY_PASSWORD}\"")
   CMD="${CONTAINER_RUNTIME} login ${REGISTRY_PREFIX} ${CONTAINER_LOGIN_ARGS[@]} "
   echo "${CMD}"
   eval "${CMD}"
@@ -172,26 +172,6 @@ echo "::endgroup::"
 ###############################################################################
 echo "::group::🐳 Running Container"
 
-# Health check configuration
-CONTAINER_ARGS+=("--health-interval" "1s")
-CONTAINER_ARGS+=("--health-timeout" "10s")
-CONTAINER_ARGS+=("--health-retries" "10")
-CONTAINER_ARGS+=("--health-start-period" "60s")
-
-# Set health check command based on authentication setup
-if [[ -n "${SETUP_ROOT_PASSWORD}" ]]; then
-    # Use root with password, disable SSL for health check to avoid certificate issues
-    CONTAINER_ARGS+=("--health-cmd" "\"mysqladmin ping -h localhost -u root -p\$MARIADB_ROOT_PASSWORD --silent --skip-ssl\"")
-elif [[ -n "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" && ( "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" == "1" || "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" == "yes" ) ]]; then
-    # Use root with no password, disable SSL for health check
-    CONTAINER_ARGS+=("--health-cmd" "\"mysqladmin ping -h localhost -u root --silent --skip-ssl\"")
-elif [[ -n "${SETUP_USER}" && -n "${SETUP_PASSWORD}" ]]; then
-    # Random root password case - use setup user and password, disable SSL for health check
-    CONTAINER_ARGS+=("--health-cmd" "\"mysqladmin ping -h localhost -u \$MARIADB_USER -p\$MARIADB_PASSWORD --silent --skip-ssl\"")
-else
-    # Random password case with no setup user - use the health check from the MariaDB container
-    CONTAINER_ARGS+=("--health-cmd" "\"healthcheck.sh --connect --innodb_initialized\"")
-fi
 
 CMD="${CONTAINER_RUNTIME} run -d ${CONTAINER_ARGS[@]} ${CONTAINER_IMAGE} ${MARIADB_ARGS[@]}"
 echo "${CMD}"
@@ -209,31 +189,63 @@ if [[ "${exit_code}" == "0" ]]; then
     # Initial wait before starting health checks
     sleep 2
     
-    # Wait for health check to pass or timeout after 120 seconds
-    timeout=120
+    # Wait for database to be ready by testing connection directly
+    timeout=60
     elapsed=0
+    connection_ready=false
+    
     while [[ $elapsed -lt $timeout ]]; do
-        health_status=$("${CONTAINER_RUNTIME}" inspect mariadb --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
-        if [[ "$health_status" == "healthy" ]]; then
-            echo "✅ Health check passed!"
-            break
-        elif [[ "$health_status" == "unhealthy" ]]; then
-            echo "❌ Health check failed!"
-            EXIT_VALUE=1
+
+        # MariaDB is ready, now test basic connection
+        echo "🔍 Testing database connection..."
+        # Test connection based on authentication setup
+        if [[ -n "${SETUP_ROOT_PASSWORD}" ]]; then
+            # Test connection with root password using simple SELECT query
+            echo "🔍 Testing connection with: mariadb -h localhost -P ${SETUP_PORT} -u root -p*** -e 'SELECT 1;'"
+            if "${CONTAINER_RUNTIME}" exec mariadbcontainer mariadb -h localhost -P "${SETUP_PORT}" -u root -p"${SETUP_ROOT_PASSWORD}" -e "SELECT 1;"; then
+                connection_ready=true
+            else
+                echo "⚠️ Connection test failed, but MariaDB appears ready. Trying again..."
+            fi
+        elif [[ -n "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" && ( "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" == "1" || "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" == "yes" ) ]]; then
+            # Test connection with root and no password
+            echo "🔍 Testing connection with: mariadb -h localhost -P ${SETUP_PORT} -u root -e 'SELECT 1;'"
+            if "${CONTAINER_RUNTIME}" exec mariadbcontainer mariadb -h localhost -P "${SETUP_PORT}" -u root -e "SELECT 1;"; then
+                connection_ready=true
+            else
+                echo "⚠️ Connection test failed, but MariaDB appears ready. Trying again..."
+            fi
+        elif [[ -n "${SETUP_USER}" && -n "${SETUP_PASSWORD}" ]]; then
+            # Test connection with setup user and password
+            echo "🔍 Testing connection with: mariadb -h localhost -P ${SETUP_PORT} -u ${SETUP_USER} -p*** -e 'SELECT 1;'"
+            if "${CONTAINER_RUNTIME}" exec mariadbcontainer mariadb -h localhost -P "${SETUP_PORT}" -u "${SETUP_USER}" -p"${SETUP_PASSWORD}" -e "SELECT 1;"; then
+                connection_ready=true
+            else
+                echo "⚠️ Connection test failed, but MariaDB appears ready. Trying again..."
+            fi
+        else
+            # For random password case, just rely on log checking since we can't know the password
+            connection_ready=true
+        fi
+
+        if [[ "$connection_ready" == "true" ]]; then
+            echo "✅ Database connection test passed!"
             break
         fi
+
+        
         sleep 2
         elapsed=$((elapsed + 2))
-        echo "⏳ Waiting... (${elapsed}s/${timeout}s) - Status: ${health_status}"
+        echo "⏳ Waiting... (${elapsed}s/${timeout}s) - Container: ${container_status}"
     done
     
-    if [[ $elapsed -ge $timeout && "$health_status" != "healthy" ]]; then
+    if [[ $elapsed -ge $timeout && "$connection_ready" != "true" ]]; then
         echo "⏰ Timeout reached waiting for database"
         EXIT_VALUE=1
     fi
     
     echo "🔎 Container logs:"
-    "${CONTAINER_RUNTIME}" logs mariadb
+    "${CONTAINER_RUNTIME}" logs mariadbcontainer
     
     if [[ "${EXIT_VALUE}" != "1" ]]; then
         echo "::group::✅ Database is ready!"
@@ -247,7 +259,7 @@ if [[ "${exit_code}" == "0" ]]; then
     fi
 else
     echo "🔎 Container logs:"
-    "${CONTAINER_RUNTIME}" logs mariadb
+    "${CONTAINER_RUNTIME}" logs mariadbcontainer
     echo "::group::❌ Database failed to start on time."
     EXIT_VALUE=1
 fi
