@@ -207,7 +207,7 @@ if [[ "${exit_code}" == "0" ]]; then
     echo "⏳ Waiting for database to be ready..."
     
     # Initial wait before starting health checks
-    sleep 1
+    sleep 2
     
     # Wait for health check to pass or timeout after 120 seconds
     timeout=120
