@@ -180,14 +180,14 @@ CONTAINER_ARGS+=("--health-start-period" "60s")
 
 # Set health check command based on authentication setup
 if [[ -n "${SETUP_ROOT_PASSWORD}" ]]; then
-    # Use root with password
-    CONTAINER_ARGS+=("--health-cmd" "\"mysqladmin ping -h localhost -u root -p\$MARIADB_ROOT_PASSWORD --silent\"")
+    # Use root with password, disable SSL for health check to avoid certificate issues
+    CONTAINER_ARGS+=("--health-cmd" "\"mysqladmin ping -h localhost -u root -p\$MARIADB_ROOT_PASSWORD --silent --skip-ssl\"")
 elif [[ -n "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" && ( "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" == "1" || "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" == "yes" ) ]]; then
-    # Use root with no password
-    CONTAINER_ARGS+=("--health-cmd" "\"mysqladmin ping -h localhost -u root --silent\"")
+    # Use root with no password, disable SSL for health check
+    CONTAINER_ARGS+=("--health-cmd" "\"mysqladmin ping -h localhost -u root --silent --skip-ssl\"")
 elif [[ -n "${SETUP_USER}" && -n "${SETUP_PASSWORD}" ]]; then
-    # Random root password case - use setup user and password
-    CONTAINER_ARGS+=("--health-cmd" "\"mysqladmin ping -h localhost -u \$MARIADB_USER -p\$MARIADB_PASSWORD --silent\"")
+    # Random root password case - use setup user and password, disable SSL for health check
+    CONTAINER_ARGS+=("--health-cmd" "\"mysqladmin ping -h localhost -u \$MARIADB_USER -p\$MARIADB_PASSWORD --silent --skip-ssl\"")
 else
     # Random password case with no setup user - use the health check from the MariaDB container
     CONTAINER_ARGS+=("--health-cmd" "\"healthcheck.sh --connect --innodb_initialized\"")
