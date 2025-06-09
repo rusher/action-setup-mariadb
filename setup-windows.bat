@@ -97,7 +97,7 @@ if not "%SETUP_DATABASE%"=="" (
 )
 
 REM Check for unsupported SETUP_ADDITIONAL_CONF
-if not "%SETUP_ADDITIONAL_CONF%"=="" (
+if defined SETUP_ADDITIONAL_CONF (
     echo [WARN] SETUP_ADDITIONAL_CONF is not supported on Windows and will be ignored
 )
 
