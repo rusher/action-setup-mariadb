@@ -115,10 +115,30 @@ if [[ -n "${SETUP_ADDITIONAL_CONF}" ]]; then
     echo "✅ additional conf: ${SETUP_ADDITIONAL_CONF}"
     # Parse the additional conf string into array elements
     # This handles multiple parameters like "--port 3388 --max_allowed_packet 40M"
+    # and also handles newline-separated parameters
     additional_conf_array=()
-  
-    eval "set -- ${SETUP_ADDITIONAL_CONF}"
-    additional_conf_array=("$@")
+    
+    # Check if the configuration contains newlines
+    if [[ "$SETUP_ADDITIONAL_CONF" == *$'\n'* ]]; then
+        # Handle newline-separated parameters
+        while IFS= read -r line; do
+            # Skip empty lines and trim whitespace
+            line=$(echo "$line" | xargs)
+            if [[ -n "$line" ]]; then
+                # Add -- prefix if not already present
+                if [[ "$line" != --* ]]; then
+                    additional_conf_array+=("--$line")
+                else
+                    additional_conf_array+=("$line")
+                fi
+            fi
+        done <<< "$SETUP_ADDITIONAL_CONF"
+    else
+        # Handle space-separated parameters (original behavior)
+        # Use safe array assignment instead of eval
+        IFS=' ' read -ra temp_array <<< "$SETUP_ADDITIONAL_CONF"
+        additional_conf_array=("${temp_array[@]}")
+    fi
     
     MARIADB_ARGS+=("${additional_conf_array[@]}")
 fi
