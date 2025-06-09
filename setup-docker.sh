@@ -167,6 +167,9 @@ echo "::endgroup::"
 
 ###############################################################################
 
+echo "🔎 Container logs:"
+"${CONTAINER_RUNTIME}" logs mariadb
+
 if [[ "${exit_code}" == "0" ]]; then
     echo "::group::✅ Database is ready!"
     # Export database type for subsequent steps
@@ -176,8 +179,6 @@ if [[ "${exit_code}" == "0" ]]; then
     echo "database-type=container" >> $GITHUB_OUTPUT
 else
     echo "::group::❌ Database failed to start on time."
-    echo "🔎 Container logs:"
-    "${CONTAINER_RUNTIME}" logs mariadb
     EXIT_VALUE=1
 fi
 
