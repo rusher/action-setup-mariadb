@@ -156,6 +156,7 @@ CONTAINER_ARGS+=("--health-interval" "1s")
 CONTAINER_ARGS+=("--health-timeout" "10s")
 CONTAINER_ARGS+=("--health-retries" "10")
 CONTAINER_ARGS+=("--health-start-period" "60s")
+CONTAINER_ARGS+=("--health-cmd" "mysqladmin ping -h localhost --silent")
 
 CMD="${CONTAINER_RUNTIME} run -d ${CONTAINER_ARGS[@]} ${CONTAINER_IMAGE} ${MARIADB_ARGS[@]}"
 echo "${CMD}"
