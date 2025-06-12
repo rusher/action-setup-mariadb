@@ -300,20 +300,29 @@ if defined SETUP_ADDITIONAL_CONF (
     echo [INFO] Processing additional configuration options...
     call :ProcessAdditionalConf "!SETUP_ADDITIONAL_CONF!"
     
-    REM Restart MariaDB service to apply configuration changes
-    echo [INFO] Restarting MariaDB service to apply configuration changes...
-    sc query "MariaDB" >nul 2>&1
+    REM Check if configuration was successfully applied
     if %errorlevel%==0 (
-        net stop "MariaDB" >nul 2>&1
-        timeout /t 2 /nobreak >nul
-        net start "MariaDB" >nul 2>&1
+        echo [INFO] Configuration changes applied successfully
+        
+        REM Restart MariaDB service to apply configuration changes
+        echo [INFO] Restarting MariaDB service to apply configuration changes...
+        sc query "MariaDB" >nul
         if %errorlevel%==0 (
-            echo [SUCCESS] MariaDB service restarted successfully
+            echo [INFO] Stopping MariaDB service...
+            net stop "MariaDB" >nul
+            timeout /t 2 /nobreak >nul
+            echo [INFO] Starting MariaDB service...
+            net start "MariaDB" >nul
+            if %errorlevel%==0 (
+                echo [SUCCESS] MariaDB service restarted successfully
+            ) else (
+                echo [WARN] Failed to restart MariaDB service - configuration changes may not be applied
+            )
         ) else (
-            echo [WARN] Failed to restart MariaDB service - configuration changes may not be applied
+            echo [WARN] MariaDB service not found - configuration changes may require manual service restart
         )
     ) else (
-        echo [WARN] MariaDB service not found - configuration changes may require manual service restart
+        echo [ERROR] Failed to apply configuration changes - skipping service restart
     )
 )
 
@@ -489,7 +498,7 @@ for /f "tokens=2" %%v in ('findstr /c:"!SEARCH_PATTERN!" "%TEMP_FILE%"') do (
 )
 
 REM Cleanup temp file
-if exist "%TEMP_FILE%" del "%TEMP_FILE%" >nul 2>&1
+if exist "%TEMP_FILE%" del "%TEMP_FILE%" >nul
 
 if not "!LATEST_VERSION!"=="" (
     echo [SUCCESS] Found latest version: !LATEST_VERSION!
@@ -539,11 +548,11 @@ if exist temp_dirs.txt (
     for /f "tokens=*" %%a in (temp_dirs.txt) do (
         call :CheckBinariesInPath "C:\Program Files\%%a\bin" "Program Files %%a"
         if not "!MYSQL_CMD!"=="" (
-            del temp_dirs.txt >nul 2>&1
+            del temp_dirs.txt >nul
             goto :eof
         )
     )
-    del temp_dirs.txt >nul 2>&1
+    del temp_dirs.txt >nul
 ) else (
     echo [INFO] No MariaDB directories found in Program Files
 )
@@ -630,7 +639,7 @@ echo [DEBUG] Calling FindMariaDBConfigFile
 call :FindMariaDBConfigFile CONFIG_FILE
 if "%CONFIG_FILE%"=="" (
     echo [ERROR] Could not find MariaDB configuration file
-    goto :eof
+    exit /b 1
 )
 
 echo [INFO] Using configuration file: %CONFIG_FILE%
@@ -654,13 +663,15 @@ if exist "%TEMP_CONF_FILE%" (
     echo. >> "%CONFIG_FILE%"
     echo # Additional configuration options added by setup script >> "%CONFIG_FILE%"
     type "%TEMP_CONF_FILE%" >> "%CONFIG_FILE%"
-    del "%TEMP_CONF_FILE%" >nul 2>&1
+    del "%TEMP_CONF_FILE%" >nul
     echo [SUCCESS] Additional configuration options added to %CONFIG_FILE%
+    exit /b 0
 ) else (
     echo [WARN] No valid configuration options found to add
+    exit /b 1
 )
 
-goto :eof
+exit /b 0
 
 :ProcessConfigLine
 REM Function to process a single configuration line
