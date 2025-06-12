@@ -233,7 +233,7 @@ if %counter% geq 30 (
     echo [ERROR] MariaDB failed to start within 30 seconds
     exit /b 1
 )
-timeout /t 1 /nobreak >nul
+timeout /t 1 /nobreak
 goto wait_loop
 
 :configure_db
@@ -298,15 +298,10 @@ if not "%MARIADB_USER%"=="" (
 REM Process SETUP_ADDITIONAL_CONF
 if defined SETUP_ADDITIONAL_CONF (
     echo [INFO] Processing additional configuration options...
-    echo [DEBUG] SETUP_ADDITIONAL_CONF is defined
-    echo [DEBUG] Length of SETUP_ADDITIONAL_CONF: [!SETUP_ADDITIONAL_CONF!]
-    echo [DEBUG] About to call ProcessAdditionalConf function
     call :ProcessAdditionalConf
-    echo [DEBUG] Returned from ProcessAdditionalConf with exit code: %errorlevel%
     
     REM Check if configuration was successfully applied
     set "CONFIG_RESULT=%errorlevel%"
-    echo [DEBUG] ProcessAdditionalConf returned: !CONFIG_RESULT!
     if !CONFIG_RESULT!==0 (
         echo [INFO] Configuration changes applied successfully
         
@@ -329,13 +324,20 @@ if defined SETUP_ADDITIONAL_CONF (
         if "!SERVICE_FOUND!"=="1" (
             echo [INFO] Stopping !SERVICE_NAME! service...
             net stop !SERVICE_NAME!
-            timeout /t 2 /nobreak >nul
+            echo [INFO] Waiting 2 seconds...
+            ping 127.0.0.1 -n 3
             echo [INFO] Starting !SERVICE_NAME! service...
             net start !SERVICE_NAME!
-            if %errorlevel%==0 (
+            set "START_RESULT=%errorlevel%"
+            if !START_RESULT!==0 (
                 echo [SUCCESS] MariaDB service restarted successfully
             ) else (
-                echo [WARN] Failed to restart MariaDB service - configuration changes may not be applied
+                echo [ERROR] Failed to restart MariaDB service after configuration changes
+                echo [INFO] This is likely due to invalid configuration options or missing files
+                echo [INFO] Please check that all SSL certificate files exist at the specified paths
+                echo [INFO] Note: Unix-style paths like '/etc/mysql/conf.d/' may not exist on Windows
+                echo [INFO] You may need to use Windows-style paths or ensure certificate files exist
+                echo [WARN] Configuration changes were applied but service failed to start
             )
         ) else (
             echo [WARN] MariaDB service not found - configuration changes may require manual service restart
@@ -501,7 +503,7 @@ REM Create temporary file for search results
 set "TEMP_FILE=%TEMP%\mariadb_versions_%RANDOM%.txt"
 
 REM Search for matching versions and save to temp file
-choco search mariadb --exact --all-versions > "%TEMP_FILE%" 2>nul
+choco search mariadb --exact --all-versions > "%TEMP_FILE%"
 
 REM Parse versions that match the pattern
 set "SEARCH_PATTERN=mariadb !VERSION_PATTERN!."
@@ -697,6 +699,8 @@ if exist "%TEMP_CONF_FILE%" (
         type "%TEMP_CONF_FILE%" >> "%CONFIG_FILE%"
         del "%TEMP_CONF_FILE%"
         echo [SUCCESS] Additional configuration options added to %CONFIG_FILE%
+        echo [INFO] Configuration file updated with SSL/additional options
+        echo [INFO] Note: Service restart may fail if certificate files don't exist
         exit /b 0
     ) else (
         echo [DEBUG] Temp config file is empty - no options to add
