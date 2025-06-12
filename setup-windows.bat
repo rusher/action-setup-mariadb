@@ -637,16 +637,9 @@ REM Create a temporary file to store the raw additional config
 set "TEMP_INPUT_FILE=%TEMP%\mariadb_input_%RANDOM%.txt"
 set "TEMP_CONF_FILE=%TEMP%\mariadb_additional_conf_%RANDOM%.txt"
 
-REM Write the additional conf to a temporary file to handle newlines properly
-echo %ADDITIONAL_CONF% > "%TEMP_INPUT_FILE%"
-
-REM Process each line from the input
-if exist "%TEMP_INPUT_FILE%" (
-    for /f "usebackq tokens=*" %%a in ("%TEMP_INPUT_FILE%") do (
-        call :ProcessConfigLine "%%a" "%TEMP_CONF_FILE%"
-    )
-    del "%TEMP_INPUT_FILE%" >nul 2>&1
-)
+REM Process the additional configuration directly without using temporary files
+REM that might cause issues with input redirection in GitHub Actions
+call :ProcessConfigLine "%ADDITIONAL_CONF%" "%TEMP_CONF_FILE%"
 
 REM Add the configurations to the MariaDB config file
 if exist "%TEMP_CONF_FILE%" (
@@ -698,21 +691,8 @@ set "FOUND_CONFIG="
 REM Check common MariaDB configuration file locations on Windows
 REM Priority order: custom config in data directory, default installation paths
 
-REM Try to find the data directory first
-for /f "tokens=*" %%a in ('!MYSQL_CMD! --help --verbose 2^>nul ^| findstr /i "datadir"') do (
-    set "DATADIR_LINE=%%a"
-    for /f "tokens=2" %%b in ("!DATADIR_LINE!") do (
-        set "DATA_DIR=%%b"
-        if exist "!DATA_DIR!\my.ini" (
-            set "FOUND_CONFIG=!DATA_DIR!\my.ini"
-            goto config_found
-        )
-        if exist "!DATA_DIR!\my.cnf" (
-            set "FOUND_CONFIG=!DATA_DIR!\my.cnf"
-            goto config_found
-        )
-    )
-)
+REM Try to find the data directory from MariaDB using a simpler approach
+REM Skip the complex help parsing that causes issues in GitHub Actions
 
 REM Check common MariaDB versions in Program Files
 echo [INFO] Checking Program Files paths for config files...
@@ -750,16 +730,17 @@ for /d %%d in ("C:\Program Files\MariaDB*") do (
     )
 )
 
-REM If no existing config found, create one in the MariaDB data directory
+REM If no existing config found, create one in a default location
 if "!FOUND_CONFIG!"=="" (
-    REM Try to determine the data directory from MariaDB
-    for /f "tokens=*" %%a in ('!MYSQL_CMD! -e "SHOW VARIABLES LIKE 'datadir';" --silent --skip-column-names 2^>nul') do (
-        set "DATADIR_VAR=%%a"
-        for /f "tokens=2" %%b in ("!DATADIR_VAR!") do (
-            set "DATA_DIR=%%b"
-            REM Remove trailing slash if present
-            if "!DATA_DIR:~-1!"=="\" set "DATA_DIR=!DATA_DIR:~0,-1!"
-            set "FOUND_CONFIG=!DATA_DIR!\my.ini"
+    REM Try common data directory locations for creating a new config file
+    set "DEFAULT_DATA_DIRS=C:\ProgramData\MariaDB\data"
+    set "DEFAULT_DATA_DIRS=!DEFAULT_DATA_DIRS!;C:\Program Files\MariaDB 10.11\data"
+    set "DEFAULT_DATA_DIRS=!DEFAULT_DATA_DIRS!;C:\Program Files\MariaDB 10.10\data"
+    set "DEFAULT_DATA_DIRS=!DEFAULT_DATA_DIRS!;C:\Program Files\MariaDB 10.9\data"
+    
+    for %%d in (!DEFAULT_DATA_DIRS!) do (
+        if exist "%%d" (
+            set "FOUND_CONFIG=%%d\my.ini"
             REM Create basic config file if it doesn't exist
             if not exist "!FOUND_CONFIG!" (
                 echo [mysqld] > "!FOUND_CONFIG!"
