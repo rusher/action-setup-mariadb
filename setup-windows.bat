@@ -678,7 +678,7 @@ set "TEMP_CONF_FILE=mariadb_additional_conf_%RANDOM%.txt"
 REM Process the additional configuration directly without using temporary files
 REM that might cause issues with input redirection in GitHub Actions
 echo [DEBUG] About to call ProcessConfigLine
-call :ProcessConfigLine "%ADDITIONAL_CONF%" "%TEMP_CONF_FILE%"
+call :ProcessConfigLine "%TEMP_CONF_FILE%"
 echo [DEBUG] ProcessConfigLine completed
 
 REM Add the configurations to the MariaDB config file
@@ -712,11 +712,10 @@ if exist "%TEMP_CONF_FILE%" (
 exit /b 0
 
 :ProcessConfigLine
-REM Function to process a single configuration line
-set "LINE=%~1"
-set "OUTPUT_FILE=%~2"
+REM Function to process configuration from SETUP_ADDITIONAL_CONF
+set "OUTPUT_FILE=%~1"
 
-echo [DEBUG] ProcessConfigLine called with: [%LINE%]
+echo [DEBUG] ProcessConfigLine called with output file: [%OUTPUT_FILE%]
 
 REM Process the multiline configuration directly using a simple approach
 REM Create a safe temporary file in the current directory
