@@ -298,7 +298,11 @@ if not "%MARIADB_USER%"=="" (
 REM Process SETUP_ADDITIONAL_CONF
 if defined SETUP_ADDITIONAL_CONF (
     echo [INFO] Processing additional configuration options...
-    call :ProcessAdditionalConf "!SETUP_ADDITIONAL_CONF!"
+    echo [DEBUG] SETUP_ADDITIONAL_CONF is defined
+    echo [DEBUG] Length of SETUP_ADDITIONAL_CONF: [!SETUP_ADDITIONAL_CONF!]
+    echo [DEBUG] About to call ProcessAdditionalConf function
+    call :ProcessAdditionalConf
+    echo [DEBUG] Returned from ProcessAdditionalConf with exit code: %errorlevel%
     
     REM Check if configuration was successfully applied
     if %errorlevel%==0 (
@@ -628,11 +632,16 @@ goto :eof
 
 :ProcessAdditionalConf
 REM Function to process additional configuration options
-set "ADDITIONAL_CONF=%~1"
-if "%ADDITIONAL_CONF%"=="" goto :eof
+echo [DEBUG] ProcessAdditionalConf function called
+set "ADDITIONAL_CONF=!SETUP_ADDITIONAL_CONF!"
+echo [DEBUG] Using SETUP_ADDITIONAL_CONF directly: [!ADDITIONAL_CONF!]
+if "!ADDITIONAL_CONF!"=="" (
+    echo [DEBUG] ADDITIONAL_CONF is empty, exiting
+    exit /b 1
+)
 
 echo [DEBUG] Starting ProcessAdditionalConf function
-echo [INFO] Processing additional configuration: %ADDITIONAL_CONF%
+echo [INFO] Processing additional configuration: !ADDITIONAL_CONF!
 
 REM Find MariaDB configuration file
 echo [DEBUG] Calling FindMariaDBConfigFile
