@@ -305,7 +305,9 @@ if defined SETUP_ADDITIONAL_CONF (
     echo [DEBUG] Returned from ProcessAdditionalConf with exit code: %errorlevel%
     
     REM Check if configuration was successfully applied
-    if %errorlevel%==0 (
+    set "CONFIG_RESULT=%errorlevel%"
+    echo [DEBUG] ProcessAdditionalConf returned: !CONFIG_RESULT!
+    if !CONFIG_RESULT!==0 (
         echo [INFO] Configuration changes applied successfully
         
         REM Restart MariaDB service to apply configuration changes
@@ -669,9 +671,9 @@ if "%CONFIG_FILE%"=="" (
 echo [INFO] Using configuration file: %CONFIG_FILE%
 echo [DEBUG] Configuration file found successfully
 
-REM Create a temporary file to store the raw additional config
-set "TEMP_INPUT_FILE=%TEMP%\mariadb_input_%RANDOM%.txt"
-set "TEMP_CONF_FILE=%TEMP%\mariadb_additional_conf_%RANDOM%.txt"
+REM Create temporary files in current directory to avoid path issues
+set "TEMP_INPUT_FILE=mariadb_input_%RANDOM%.txt"
+set "TEMP_CONF_FILE=mariadb_additional_conf_%RANDOM%.txt"
 
 REM Process the additional configuration directly without using temporary files
 REM that might cause issues with input redirection in GitHub Actions
@@ -680,10 +682,13 @@ call :ProcessConfigLine "%ADDITIONAL_CONF%" "%TEMP_CONF_FILE%"
 echo [DEBUG] ProcessConfigLine completed
 
 REM Add the configurations to the MariaDB config file
+echo [DEBUG] Checking for temp config file: "%TEMP_CONF_FILE%"
 if exist "%TEMP_CONF_FILE%" (
-    REM Check if the temp file has any content by trying to find at least one character
-    findstr /r "." "%TEMP_CONF_FILE%" >nul
-    if %errorlevel%==0 (
+    echo [DEBUG] Temp config file exists, checking content
+    REM Check if the temp file has any content by checking file size
+    for %%A in ("%TEMP_CONF_FILE%") do set "FILE_SIZE=%%~zA"
+    if !FILE_SIZE! gtr 0 (
+        echo [DEBUG] Temp config file has content
         REM Always add [mysqld] section to be safe (won't hurt if it already exists)
         echo. >> "%CONFIG_FILE%"
         echo [mysqld] >> "%CONFIG_FILE%"
@@ -694,12 +699,13 @@ if exist "%TEMP_CONF_FILE%" (
         echo [SUCCESS] Additional configuration options added to %CONFIG_FILE%
         exit /b 0
     ) else (
-        echo [WARN] Configuration file is empty - no options to add
-        del "%TEMP_CONF_FILE%"
+        echo [DEBUG] Temp config file is empty - no options to add
+        if exist "%TEMP_CONF_FILE%" del "%TEMP_CONF_FILE%"
         exit /b 1
     )
 ) else (
-    echo [WARN] No configuration file was created - no valid options found
+    echo [DEBUG] No configuration file was created - no valid options found
+    echo [DEBUG] Expected file location: "%TEMP_CONF_FILE%"
     exit /b 1
 )
 
@@ -732,12 +738,17 @@ for /f "usebackq delims=" %%i in ("%TEMP_MULTILINE%") do (
         if "!SINGLE_LINE:~0,2!"=="--" (
             set "SINGLE_LINE=!SINGLE_LINE:~2!"
         )
-        REM Only add non-empty options after trimming
-        set "FINAL_LINE=!SINGLE_LINE: =!"
-        if not "!FINAL_LINE!"=="" (
-            echo !SINGLE_LINE! >> "%OUTPUT_FILE%"
-            echo [INFO] Added configuration option: !SINGLE_LINE!
-        )
+                 REM Only add non-empty options after trimming
+         set "FINAL_LINE=!SINGLE_LINE: =!"
+         if not "!FINAL_LINE!"=="" (
+             echo [DEBUG] Writing to file: "%OUTPUT_FILE%"
+             echo !SINGLE_LINE! >> "%OUTPUT_FILE%"
+             if exist "%OUTPUT_FILE%" (
+                 echo [INFO] Added configuration option: !SINGLE_LINE!
+             ) else (
+                 echo [ERROR] Failed to write to output file: %OUTPUT_FILE%
+             )
+         )
     )
 )
 
