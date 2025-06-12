@@ -105,7 +105,7 @@ echo ::group:: Installing MariaDB
 
 REM Check if MySQL is installed and stop it if running
 echo Checking for existing MySQL installation...
-where mysql >nul 2>&1
+where mysql >nul
 if %errorlevel%==0 (
     echo [WARN] MySQL command found in PATH
     echo [INFO] MySQL path:
@@ -119,14 +119,14 @@ if %errorlevel%==0 (
         
         REM Stop MySQL services if running
         echo [INFO] Stopping MySQL services...
-        net stop MySQL80 >nul 2>&1
+        net stop MySQL80 >nul
         if %errorlevel%==0 (
             echo [SUCCESS] MySQL80 service stopped
         ) else (
             echo [INFO] MySQL80 service was not running or not found
         )
         
-        net stop MySQL >nul 2>&1
+        net stop MySQL >nul
         if %errorlevel%==0 (
             echo [SUCCESS] MySQL service stopped
         ) else (
@@ -142,7 +142,7 @@ REM Check if MariaDB is already installed
 echo [INFO] Checking for existing MariaDB installation...
 
 REM Only check for mariadb command specifically
-where mariadb >nul 2>&1
+where mariadb >nul
 if %errorlevel%==0 (
     echo [WARN] MariaDB command found in PATH
     echo [INFO] MariaDB path:
@@ -185,10 +185,10 @@ echo ::group:: Starting MariaDB Service
 echo Starting MariaDB service...
 
 REM Check for MariaDB service
-sc query "MariaDB" >nul 2>&1
+sc query "MariaDB" >nul
 if %errorlevel%==0 (
     echo [INFO] Found MariaDB service
-    net start "MariaDB" >nul 2>&1
+    net start "MariaDB" >nul
     if %errorlevel%==0 (
         echo [SUCCESS] MariaDB service started successfully
     ) else (
@@ -204,7 +204,7 @@ echo [LOADING] Waiting for MariaDB to be ready...
 
 REM Detect which command is available
 set MYSQL_CMD=
-where mariadb >nul 2>&1
+where mariadb >nul
 if %errorlevel%==0 (
     set MYSQL_CMD=mariadb
     echo [INFO] Found mariadb command in PATH
@@ -223,7 +223,7 @@ echo [INFO] Using command: !MYSQL_CMD!
 set /a counter=0
 :wait_loop
 REM Try to connect using the detected command
-!MYSQL_CMD! -u root --execute="SELECT 1 AS test;" --silent 2>nul
+!MYSQL_CMD! -u root --execute="SELECT 1 AS test;" --silent >nul
 if %errorlevel%==0 (
     echo [SUCCESS] MariaDB is ready!
     goto configure_db
@@ -245,11 +245,11 @@ echo ::group:: Configuring MariaDB
 REM Set root password if specified
 if not "%MARIADB_ROOT_PASSWORD%"=="" (
     echo Configuring root password...
-    !MYSQL_CMD! -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '!MARIADB_ROOT_PASSWORD!';" 2>nul
+    !MYSQL_CMD! -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '!MARIADB_ROOT_PASSWORD!';" >nul
     if !errorlevel! neq 0 (
-        !MYSQL_CMD! -u root -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('!MARIADB_ROOT_PASSWORD!');" 2>nul
+        !MYSQL_CMD! -u root -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('!MARIADB_ROOT_PASSWORD!');" >nul
         if !errorlevel! neq 0 (
-            mysqladmin -u root password "!MARIADB_ROOT_PASSWORD!" 2>nul
+            mysqladmin -u root password "!MARIADB_ROOT_PASSWORD!" >nul
         )
     )
     echo [SUCCESS] Root password configured
@@ -310,13 +310,26 @@ if defined SETUP_ADDITIONAL_CONF (
         
         REM Restart MariaDB service to apply configuration changes
         echo [INFO] Restarting MariaDB service to apply configuration changes...
-        sc query "MariaDB" >nul
-        if %errorlevel%==0 (
-            echo [INFO] Stopping MariaDB service...
-            net stop "MariaDB" >nul
+        
+        REM Try different possible service names
+        set "SERVICE_FOUND=0"
+        for %%s in ("MariaDB" "mariadb" "MySQL") do (
+            sc query %%s >nul
+            if !errorlevel!==0 (
+                set "SERVICE_FOUND=1"
+                set "SERVICE_NAME=%%s"
+                echo [INFO] Found service: %%s
+                goto restart_service
+            )
+        )
+        
+        :restart_service
+        if "!SERVICE_FOUND!"=="1" (
+            echo [INFO] Stopping !SERVICE_NAME! service...
+            net stop !SERVICE_NAME! >nul
             timeout /t 2 /nobreak >nul
-            echo [INFO] Starting MariaDB service...
-            net start "MariaDB" >nul
+            echo [INFO] Starting !SERVICE_NAME! service...
+            net start !SERVICE_NAME! >nul
             if %errorlevel%==0 (
                 echo [SUCCESS] MariaDB service restarted successfully
             ) else (
@@ -324,6 +337,8 @@ if defined SETUP_ADDITIONAL_CONF (
             )
         ) else (
             echo [WARN] MariaDB service not found - configuration changes may require manual service restart
+            echo [INFO] Attempting to list all MariaDB-related services:
+            sc query type= service state= all | findstr /i "mariadb mysql" >nul
         )
     ) else (
         echo [ERROR] Failed to apply configuration changes - skipping service restart
@@ -618,7 +633,7 @@ dir "C:\Program Files\" /b /ad 2>nul | findstr /i mysql
 if %errorlevel% neq 0 echo [INFO] No MySQL directories found in Program Files
 
 echo [INFO] Checking Windows Services for MariaDB/MySQL:
-sc query type= service state= all | findstr /i "mariadb mysql" 2>nul
+sc query type= service state= all | findstr /i "mariadb mysql"
 if %errorlevel% neq 0 echo [INFO] No MariaDB/MySQL services found
 
 echo [INFO] === End Diagnostic ===
@@ -687,17 +702,31 @@ REM Function to process a single configuration line
 set "LINE=%~1"
 set "OUTPUT_FILE=%~2"
 
-REM Clean up the line by removing leading/trailing whitespace and line feeds
-set "LINE=%LINE: =%"
-if "%LINE%"=="" goto :eof
+echo [DEBUG] ProcessConfigLine called with: [%LINE%]
 
-REM Replace common line separators with spaces for easier processing
-set "LINE=%LINE:\n= %"
-set "LINE=%LINE:\r= %"
+REM Save the multiline string to a temporary file and process line by line
+set "TEMP_MULTILINE=%TEMP%\mariadb_multiline_%RANDOM%.txt"
+echo !ADDITIONAL_CONF! > "%TEMP_MULTILINE%"
 
-REM Handle space-separated options on the same line
-REM Use a safer approach that doesn't rely on complex parsing
-call :ProcessSingleOptions "%LINE%" "%OUTPUT_FILE%"
+REM Process each line from the file
+for /f "usebackq delims=" %%i in ("%TEMP_MULTILINE%") do (
+    set "SINGLE_LINE=%%i"
+    echo [DEBUG] Processing line: [!SINGLE_LINE!]
+    if not "!SINGLE_LINE!"=="" (
+        REM Remove -- prefix if present
+        if "!SINGLE_LINE:~0,2!"=="--" (
+            set "SINGLE_LINE=!SINGLE_LINE:~2!"
+        )
+        REM Only add non-empty options
+        if not "!SINGLE_LINE!"=="" (
+            echo !SINGLE_LINE! >> "%OUTPUT_FILE%"
+            echo [INFO] Added configuration option: !SINGLE_LINE!
+        )
+    )
+)
+
+REM Clean up temp file
+if exist "%TEMP_MULTILINE%" del "%TEMP_MULTILINE%" >nul
 
 goto :eof
 
