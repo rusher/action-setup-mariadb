@@ -326,10 +326,10 @@ if defined SETUP_ADDITIONAL_CONF (
         :restart_service
         if "!SERVICE_FOUND!"=="1" (
             echo [INFO] Stopping !SERVICE_NAME! service...
-            net stop !SERVICE_NAME! >nul
+            net stop !SERVICE_NAME!
             timeout /t 2 /nobreak >nul
             echo [INFO] Starting !SERVICE_NAME! service...
-            net start !SERVICE_NAME! >nul
+            net start !SERVICE_NAME!
             if %errorlevel%==0 (
                 echo [SUCCESS] MariaDB service restarted successfully
             ) else (
@@ -681,17 +681,25 @@ echo [DEBUG] ProcessConfigLine completed
 
 REM Add the configurations to the MariaDB config file
 if exist "%TEMP_CONF_FILE%" (
-    REM Always add [mysqld] section to be safe (won't hurt if it already exists)
-    echo. >> "%CONFIG_FILE%"
-    echo [mysqld] >> "%CONFIG_FILE%"
-    echo. >> "%CONFIG_FILE%"
-    echo # Additional configuration options added by setup script >> "%CONFIG_FILE%"
-    type "%TEMP_CONF_FILE%" >> "%CONFIG_FILE%"
-    del "%TEMP_CONF_FILE%" >nul
-    echo [SUCCESS] Additional configuration options added to %CONFIG_FILE%
-    exit /b 0
+    REM Check if the temp file has any content by trying to find at least one character
+    findstr /r "." "%TEMP_CONF_FILE%" >nul
+    if %errorlevel%==0 (
+        REM Always add [mysqld] section to be safe (won't hurt if it already exists)
+        echo. >> "%CONFIG_FILE%"
+        echo [mysqld] >> "%CONFIG_FILE%"
+        echo. >> "%CONFIG_FILE%"
+        echo # Additional configuration options added by setup script >> "%CONFIG_FILE%"
+        type "%TEMP_CONF_FILE%" >> "%CONFIG_FILE%"
+        del "%TEMP_CONF_FILE%"
+        echo [SUCCESS] Additional configuration options added to %CONFIG_FILE%
+        exit /b 0
+    ) else (
+        echo [WARN] Configuration file is empty - no options to add
+        del "%TEMP_CONF_FILE%"
+        exit /b 1
+    )
 ) else (
-    echo [WARN] No valid configuration options found to add
+    echo [WARN] No configuration file was created - no valid options found
     exit /b 1
 )
 
@@ -704,21 +712,29 @@ set "OUTPUT_FILE=%~2"
 
 echo [DEBUG] ProcessConfigLine called with: [%LINE%]
 
-REM Save the multiline string to a temporary file and process line by line
-set "TEMP_MULTILINE=%TEMP%\mariadb_multiline_%RANDOM%.txt"
-echo !ADDITIONAL_CONF! > "%TEMP_MULTILINE%"
+REM Process the multiline configuration directly using a simple approach
+REM Create a safe temporary file in the current directory
+set "TEMP_MULTILINE=mariadb_temp_%RANDOM%.txt"
 
-REM Process each line from the file
+REM Write the configuration to temp file more safely
+(
+echo !ADDITIONAL_CONF!
+) > "%TEMP_MULTILINE%"
+
+REM Process each line from the file, skipping empty lines
 for /f "usebackq delims=" %%i in ("%TEMP_MULTILINE%") do (
     set "SINGLE_LINE=%%i"
     echo [DEBUG] Processing line: [!SINGLE_LINE!]
-    if not "!SINGLE_LINE!"=="" (
+    REM Skip empty lines and lines with only spaces
+    set "TRIMMED_LINE=!SINGLE_LINE: =!"
+    if not "!TRIMMED_LINE!"=="" (
         REM Remove -- prefix if present
         if "!SINGLE_LINE:~0,2!"=="--" (
             set "SINGLE_LINE=!SINGLE_LINE:~2!"
         )
-        REM Only add non-empty options
-        if not "!SINGLE_LINE!"=="" (
+        REM Only add non-empty options after trimming
+        set "FINAL_LINE=!SINGLE_LINE: =!"
+        if not "!FINAL_LINE!"=="" (
             echo !SINGLE_LINE! >> "%OUTPUT_FILE%"
             echo [INFO] Added configuration option: !SINGLE_LINE!
         )
@@ -726,7 +742,7 @@ for /f "usebackq delims=" %%i in ("%TEMP_MULTILINE%") do (
 )
 
 REM Clean up temp file
-if exist "%TEMP_MULTILINE%" del "%TEMP_MULTILINE%" >nul
+if exist "%TEMP_MULTILINE%" del "%TEMP_MULTILINE%"
 
 goto :eof
 
