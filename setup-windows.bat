@@ -622,9 +622,11 @@ REM Function to process additional configuration options
 set "ADDITIONAL_CONF=%~1"
 if "%ADDITIONAL_CONF%"=="" goto :eof
 
+echo [DEBUG] Starting ProcessAdditionalConf function
 echo [INFO] Processing additional configuration: %ADDITIONAL_CONF%
 
 REM Find MariaDB configuration file
+echo [DEBUG] Calling FindMariaDBConfigFile
 call :FindMariaDBConfigFile CONFIG_FILE
 if "%CONFIG_FILE%"=="" (
     echo [ERROR] Could not find MariaDB configuration file
@@ -632,6 +634,7 @@ if "%CONFIG_FILE%"=="" (
 )
 
 echo [INFO] Using configuration file: %CONFIG_FILE%
+echo [DEBUG] Configuration file found successfully
 
 REM Create a temporary file to store the raw additional config
 set "TEMP_INPUT_FILE=%TEMP%\mariadb_input_%RANDOM%.txt"
@@ -639,18 +642,15 @@ set "TEMP_CONF_FILE=%TEMP%\mariadb_additional_conf_%RANDOM%.txt"
 
 REM Process the additional configuration directly without using temporary files
 REM that might cause issues with input redirection in GitHub Actions
+echo [DEBUG] About to call ProcessConfigLine
 call :ProcessConfigLine "%ADDITIONAL_CONF%" "%TEMP_CONF_FILE%"
+echo [DEBUG] ProcessConfigLine completed
 
 REM Add the configurations to the MariaDB config file
 if exist "%TEMP_CONF_FILE%" (
-    REM Check if the config file has a [mysqld] section
-    findstr /i "^\[mysqld\]" "%CONFIG_FILE%" >nul
-    if %errorlevel% neq 0 (
-        REM Add [mysqld] section if it doesn't exist
-        echo. >> "%CONFIG_FILE%"
-        echo [mysqld] >> "%CONFIG_FILE%"
-    )
-    
+    REM Always add [mysqld] section to be safe (won't hurt if it already exists)
+    echo. >> "%CONFIG_FILE%"
+    echo [mysqld] >> "%CONFIG_FILE%"
     echo. >> "%CONFIG_FILE%"
     echo # Additional configuration options added by setup script >> "%CONFIG_FILE%"
     type "%TEMP_CONF_FILE%" >> "%CONFIG_FILE%"
@@ -667,17 +667,38 @@ REM Function to process a single configuration line
 set "LINE=%~1"
 set "OUTPUT_FILE=%~2"
 
+REM Clean up the line by removing leading/trailing whitespace and line feeds
+set "LINE=%LINE: =%"
+if "%LINE%"=="" goto :eof
+
+REM Replace common line separators with spaces for easier processing
+set "LINE=%LINE:\n= %"
+set "LINE=%LINE:\r= %"
+
 REM Handle space-separated options on the same line
-for %%a in (%LINE%) do (
+REM Use a safer approach that doesn't rely on complex parsing
+call :ProcessSingleOptions "%LINE%" "%OUTPUT_FILE%"
+
+goto :eof
+
+:ProcessSingleOptions
+set "OPTIONS=%~1"
+set "OUTPUT_FILE=%~2"
+
+REM Simple approach: split on spaces and process each token
+for %%a in (%OPTIONS%) do (
     set "OPTION=%%a"
-    REM Remove -- prefix if present
-    if "!OPTION:~0,2!"=="--" (
-        set "OPTION=!OPTION:~2!"
-    )
     REM Skip empty options
     if not "!OPTION!"=="" (
-        echo !OPTION! >> "%OUTPUT_FILE%"
-        echo [INFO] Added configuration option: !OPTION!
+        REM Remove -- prefix if present
+        if "!OPTION:~0,2!"=="--" (
+            set "OPTION=!OPTION:~2!"
+        )
+        REM Only add non-empty options
+        if not "!OPTION!"=="" (
+            echo !OPTION! >> "%OUTPUT_FILE%"
+            echo [INFO] Added configuration option: !OPTION!
+        )
     )
 )
 
