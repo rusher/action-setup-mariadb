@@ -96,10 +96,7 @@ if not "%SETUP_DATABASE%"=="" (
     echo [INFO] Initial database set to !MARIADB_DATABASE!
 )
 
-REM Check for unsupported SETUP_ADDITIONAL_CONF
-if defined SETUP_ADDITIONAL_CONF (
-    echo [WARN] SETUP_ADDITIONAL_CONF is not supported on Windows and will be ignored
-)
+
 
 echo ::endgroup::
 
@@ -295,6 +292,28 @@ if not "%MARIADB_USER%"=="" (
             !MYSQL_CMD! -u root -e "FLUSH PRIVILEGES;"
         )
         echo [SUCCESS] User '%MARIADB_USER%' created and granted privileges
+    )
+)
+
+REM Process SETUP_ADDITIONAL_CONF
+if defined SETUP_ADDITIONAL_CONF (
+    echo [INFO] Processing additional configuration options...
+    call :ProcessAdditionalConf "!SETUP_ADDITIONAL_CONF!"
+    
+    REM Restart MariaDB service to apply configuration changes
+    echo [INFO] Restarting MariaDB service to apply configuration changes...
+    sc query "MariaDB" >nul 2>&1
+    if %errorlevel%==0 (
+        net stop "MariaDB" >nul 2>&1
+        timeout /t 2 /nobreak >nul
+        net start "MariaDB" >nul 2>&1
+        if %errorlevel%==0 (
+            echo [SUCCESS] MariaDB service restarted successfully
+        ) else (
+            echo [WARN] Failed to restart MariaDB service - configuration changes may not be applied
+        )
+    ) else (
+        echo [WARN] MariaDB service not found - configuration changes may require manual service restart
     )
 )
 
@@ -499,14 +518,14 @@ if not "!MYSQL_CMD!"=="" goto :eof
 
 REM Check common MariaDB versions in Program Files
 echo [INFO] Checking Program Files paths...
-for %%v in (10.3 10.4 10.5 10.6 10.7 10.8 10.9 10.10 10.11 11.0 11.1 11.2 11.3 11.4 11.5) do (
+for %%v in (10.3 10.4 10.5 10.6 10.7 10.8 10.9 10.10 10.11 11.0 11.1 11.2 11.3 11.4 11.5 11.6 11.7 11.8 12.0 12.1 12.2 12.2) do (
     call :CheckBinariesInPath "C:\Program Files\MariaDB %%v\bin" "Program Files MariaDB %%v"
     if not "!MYSQL_CMD!"=="" goto :eof
 )
 
 REM Check common MariaDB versions in ProgramData
 echo [INFO] Checking ProgramData paths...
-for %%v in (10.3 10.4 10.5 10.6 10.7 10.8 10.9 10.10 10.11 11.0 11.1 11.2 11.3 11.4 11.5) do (
+for %%v in (10.3 10.4 10.5 10.6 10.7 10.8 10.9 10.10 10.11 11.0 11.1 11.2 11.3 11.4 11.5 11.6 11.7 11.8 12.0 12.1 12.2 12.3) do (
     call :CheckBinariesInPath "C:\ProgramData\MariaDB\MariaDB Server %%v\bin" "ProgramData MariaDB Server %%v"
     if not "!MYSQL_CMD!"=="" goto :eof
 )
@@ -596,4 +615,181 @@ echo [INFO] 1. Check if Chocolatey installation completed successfully
 echo [INFO] 2. Try running: choco list mariadb --exact --limit-output
 echo [INFO] 3. Try reinstalling: choco uninstall mariadb -y, then choco install mariadb -y
 echo [INFO] 4. Check Windows Event Logs for installation errors
+goto :eof
+
+:ProcessAdditionalConf
+REM Function to process additional configuration options
+set "ADDITIONAL_CONF=%~1"
+if "%ADDITIONAL_CONF%"=="" goto :eof
+
+echo [INFO] Processing additional configuration: %ADDITIONAL_CONF%
+
+REM Find MariaDB configuration file
+call :FindMariaDBConfigFile CONFIG_FILE
+if "%CONFIG_FILE%"=="" (
+    echo [ERROR] Could not find MariaDB configuration file
+    goto :eof
+)
+
+echo [INFO] Using configuration file: %CONFIG_FILE%
+
+REM Create a temporary file to store the raw additional config
+set "TEMP_INPUT_FILE=%TEMP%\mariadb_input_%RANDOM%.txt"
+set "TEMP_CONF_FILE=%TEMP%\mariadb_additional_conf_%RANDOM%.txt"
+
+REM Write the additional conf to a temporary file to handle newlines properly
+echo %ADDITIONAL_CONF% > "%TEMP_INPUT_FILE%"
+
+REM Process each line from the input
+if exist "%TEMP_INPUT_FILE%" (
+    for /f "usebackq tokens=*" %%a in ("%TEMP_INPUT_FILE%") do (
+        call :ProcessConfigLine "%%a" "%TEMP_CONF_FILE%"
+    )
+    del "%TEMP_INPUT_FILE%" >nul 2>&1
+)
+
+REM Add the configurations to the MariaDB config file
+if exist "%TEMP_CONF_FILE%" (
+    REM Check if the config file has a [mysqld] section
+    findstr /i "^\[mysqld\]" "%CONFIG_FILE%" >nul
+    if %errorlevel% neq 0 (
+        REM Add [mysqld] section if it doesn't exist
+        echo. >> "%CONFIG_FILE%"
+        echo [mysqld] >> "%CONFIG_FILE%"
+    )
+    
+    echo. >> "%CONFIG_FILE%"
+    echo # Additional configuration options added by setup script >> "%CONFIG_FILE%"
+    type "%TEMP_CONF_FILE%" >> "%CONFIG_FILE%"
+    del "%TEMP_CONF_FILE%" >nul 2>&1
+    echo [SUCCESS] Additional configuration options added to %CONFIG_FILE%
+) else (
+    echo [WARN] No valid configuration options found to add
+)
+
+goto :eof
+
+:ProcessConfigLine
+REM Function to process a single configuration line
+set "LINE=%~1"
+set "OUTPUT_FILE=%~2"
+
+REM Handle space-separated options on the same line
+for %%a in (%LINE%) do (
+    set "OPTION=%%a"
+    REM Remove -- prefix if present
+    if "!OPTION:~0,2!"=="--" (
+        set "OPTION=!OPTION:~2!"
+    )
+    REM Skip empty options
+    if not "!OPTION!"=="" (
+        echo !OPTION! >> "%OUTPUT_FILE%"
+        echo [INFO] Added configuration option: !OPTION!
+    )
+)
+
+goto :eof
+
+:FindMariaDBConfigFile
+REM Function to find MariaDB configuration file
+set "RETURN_VAR=%~1"
+set "FOUND_CONFIG="
+
+REM Check common MariaDB configuration file locations on Windows
+REM Priority order: custom config in data directory, default installation paths
+
+REM Try to find the data directory first
+for /f "tokens=*" %%a in ('!MYSQL_CMD! --help --verbose 2^>nul ^| findstr /i "datadir"') do (
+    set "DATADIR_LINE=%%a"
+    for /f "tokens=2" %%b in ("!DATADIR_LINE!") do (
+        set "DATA_DIR=%%b"
+        if exist "!DATA_DIR!\my.ini" (
+            set "FOUND_CONFIG=!DATA_DIR!\my.ini"
+            goto config_found
+        )
+        if exist "!DATA_DIR!\my.cnf" (
+            set "FOUND_CONFIG=!DATA_DIR!\my.cnf"
+            goto config_found
+        )
+    )
+)
+
+REM Check common MariaDB versions in Program Files
+echo [INFO] Checking Program Files paths for config files...
+for %%v in (10.3 10.4 10.5 10.6 10.7 10.8 10.9 10.10 10.11 11.0 11.1 11.2 11.3 11.4 11.5 11.6 11.7 11.8 12.0 12.1 12.2 12.3) do (
+    call :CheckConfigInPath "C:\Program Files\MariaDB %%v\data" "Program Files MariaDB %%v data"
+    if not "!FOUND_CONFIG!"=="" goto config_found
+    call :CheckConfigInPath "C:\Program Files\MariaDB %%v" "Program Files MariaDB %%v"
+    if not "!FOUND_CONFIG!"=="" goto config_found
+)
+
+REM Check common MariaDB versions in ProgramData
+echo [INFO] Checking ProgramData paths for config files...
+for %%v in (10.3 10.4 10.5 10.6 10.7 10.8 10.9 10.10 10.11 11.0 11.1 11.2 11.3 11.4 11.5 11.6 11.7 11.8 12.0 12.1 12.2 12.3) do (
+    call :CheckConfigInPath "C:\ProgramData\MariaDB\MariaDB Server %%v\data" "ProgramData MariaDB Server %%v data"
+    if not "!FOUND_CONFIG!"=="" goto config_found
+    call :CheckConfigInPath "C:\ProgramData\MariaDB\MariaDB Server %%v" "ProgramData MariaDB Server %%v"
+    if not "!FOUND_CONFIG!"=="" goto config_found
+)
+
+REM Check other common paths
+call :CheckConfigInPath "C:\ProgramData\MariaDB\data" "ProgramData MariaDB data"
+if not "!FOUND_CONFIG!"=="" goto config_found
+call :CheckConfigInPath "C:\ProgramData\MySQL\MySQL Server 8.0" "MySQL Server 8.0"
+if not "!FOUND_CONFIG!"=="" goto config_found
+
+REM Try to find any MariaDB installation directory and look for config files
+for /d %%d in ("C:\Program Files\MariaDB*") do (
+    if exist "%%d\data\my.ini" (
+        set "FOUND_CONFIG=%%d\data\my.ini"
+        goto config_found
+    )
+    if exist "%%d\my.ini" (
+        set "FOUND_CONFIG=%%d\my.ini"
+        goto config_found
+    )
+)
+
+REM If no existing config found, create one in the MariaDB data directory
+if "!FOUND_CONFIG!"=="" (
+    REM Try to determine the data directory from MariaDB
+    for /f "tokens=*" %%a in ('!MYSQL_CMD! -e "SHOW VARIABLES LIKE 'datadir';" --silent --skip-column-names 2^>nul') do (
+        set "DATADIR_VAR=%%a"
+        for /f "tokens=2" %%b in ("!DATADIR_VAR!") do (
+            set "DATA_DIR=%%b"
+            REM Remove trailing slash if present
+            if "!DATA_DIR:~-1!"=="\" set "DATA_DIR=!DATA_DIR:~0,-1!"
+            set "FOUND_CONFIG=!DATA_DIR!\my.ini"
+            REM Create basic config file if it doesn't exist
+            if not exist "!FOUND_CONFIG!" (
+                echo [mysqld] > "!FOUND_CONFIG!"
+                echo port=3306 >> "!FOUND_CONFIG!"
+                echo [INFO] Created new configuration file: !FOUND_CONFIG!
+            )
+            goto config_found
+        )
+    )
+)
+
+:config_found
+set "%RETURN_VAR%=%FOUND_CONFIG%"
+goto :eof
+
+:CheckConfigInPath
+REM Helper function to check for my.ini and my.cnf in a given path
+set "CHECK_PATH=%~1"
+set "LOCATION_DESC=%~2"
+
+if exist "%CHECK_PATH%\my.ini" (
+    set "FOUND_CONFIG=%CHECK_PATH%\my.ini"
+    echo [SUCCESS] Found MariaDB config at %CHECK_PATH%\my.ini ^(%LOCATION_DESC%^)
+    goto :eof
+)
+
+if exist "%CHECK_PATH%\my.cnf" (
+    set "FOUND_CONFIG=%CHECK_PATH%\my.cnf"
+    echo [SUCCESS] Found MariaDB config at %CHECK_PATH%\my.cnf ^(%LOCATION_DESC%^)
+    goto :eof
+)
+
 goto :eof
