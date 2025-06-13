@@ -249,6 +249,9 @@ if [[ "${exit_code}" == "0" ]]; then
     
     if [[ "${EXIT_VALUE}" != "1" ]]; then
         echo "::group::✅ Database is ready!"
+        # Display password check settings
+        echo "🔍 Checking password validation settings..."
+        "${CONTAINER_RUNTIME}" exec mariadbcontainer mariadb -u root -e "SELECT @@simple_password_check_digits, @@simple_password_check_letters_same_case, @@simple_password_check_minimal_length, @@simple_password_check_other_characters;"
         # Export database type for subsequent steps
         echo "SETUP_DATABASE_TYPE=container" >> $GITHUB_ENV
         echo "✅ Database type exported: container"
