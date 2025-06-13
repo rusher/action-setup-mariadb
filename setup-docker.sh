@@ -251,7 +251,13 @@ if [[ "${exit_code}" == "0" ]]; then
         echo "::group::✅ Database is ready!"
         # Display password check settings
         echo "🔍 Checking password validation settings..."
-        "${CONTAINER_RUNTIME}" exec mariadbcontainer mariadb -u root -e "SELECT @@simple_password_check_digits, @@simple_password_check_letters_same_case, @@simple_password_check_minimal_length, @@simple_password_check_other_characters;"
+        if [[ -n "${SETUP_ROOT_PASSWORD}" ]]; then
+            "${CONTAINER_RUNTIME}" exec mariadbcontainer mariadb -u root -p"${SETUP_ROOT_PASSWORD}" -e "SELECT @@simple_password_check_digits, @@simple_password_check_letters_same_case, @@simple_password_check_minimal_length, @@simple_password_check_other_characters;"
+        elif [[ -n "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" && ( "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" == "1" || "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" == "yes" ) ]]; then
+            "${CONTAINER_RUNTIME}" exec mariadbcontainer mariadb -u root -e "SELECT @@simple_password_check_digits, @@simple_password_check_letters_same_case, @@simple_password_check_minimal_length, @@simple_password_check_other_characters;"
+        else
+            echo "⚠️ Cannot check password settings: root password is randomly generated"
+        fi
         # Export database type for subsequent steps
         echo "SETUP_DATABASE_TYPE=container" >> $GITHUB_ENV
         echo "✅ Database type exported: container"
