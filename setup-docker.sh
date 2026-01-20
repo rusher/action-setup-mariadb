@@ -110,6 +110,10 @@ if [[ -n "${SETUP_INIT_SCRIPT_FOLDER}" ]]; then
     CONTAINER_ARGS+=("-v" "${SETUP_INIT_SCRIPT_FOLDER}:/docker-entrypoint-initdb.d")
 fi
 
+# CHARSET - Always set to utf8mb4
+echo "✅ charset set to utf8mb4"
+MARIADB_ARGS+=("--character-set-server=utf8mb4")
+
 # ADDITIONAL_CONF
 if [[ -n "${SETUP_ADDITIONAL_CONF}" ]]; then
     echo "✅ additional conf: ${SETUP_ADDITIONAL_CONF}"
