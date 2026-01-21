@@ -177,6 +177,19 @@ if exist "C:\ProgramData\chocolatey\lib\" (
     dir "C:\ProgramData\chocolatey\lib\" /b /ad 2>nul | findstr /i maria
 )
 
+REM Configure utf8mb4 charset
+echo [INFO] Configuring utf8mb4 charset...
+call :FindMariaDBConfigFile CONFIG_FILE
+if not "%CONFIG_FILE%"=="" (
+    echo [INFO] Adding utf8mb4 charset configuration to %CONFIG_FILE%
+    echo. >> "%CONFIG_FILE%"
+    echo [mysqld] >> "%CONFIG_FILE%"
+    echo character-set-server=utf8mb4 >> "%CONFIG_FILE%"
+    echo [SUCCESS] Charset set to utf8mb4
+) else (
+    echo [WARN] Could not find MariaDB configuration file, charset not configured
+)
+
 echo ::endgroup::
 
 REM ############################################################################
