@@ -750,21 +750,28 @@ for /f "usebackq delims=" %%i in ("%TEMP_MULTILINE%") do (
     REM Skip empty lines and lines with only spaces
     set "TRIMMED_LINE=!SINGLE_LINE: =!"
     if not "!TRIMMED_LINE!"=="" (
-        REM Remove -- prefix if present
-        if "!SINGLE_LINE:~0,2!"=="--" (
-            set "SINGLE_LINE=!SINGLE_LINE:~2!"
+        REM Split space-separated parameters on the same line
+        for %%p in (!SINGLE_LINE!) do (
+            set "PARAM=%%p"
+            REM Skip empty parameters
+            if not "!PARAM!"=="" (
+                REM Remove -- prefix if present
+                if "!PARAM:~0,2!"=="--" (
+                    set "PARAM=!PARAM:~2!"
+                )
+                REM Only add non-empty options after trimming
+                set "FINAL_PARAM=!PARAM: =!"
+                if not "!FINAL_PARAM!"=="" (
+                    echo [DEBUG] Writing parameter to file: "!PARAM!"
+                    echo !PARAM! >> "%OUTPUT_FILE%"
+                    if exist "%OUTPUT_FILE%" (
+                        echo [INFO] Added configuration option: !PARAM!
+                    ) else (
+                        echo [ERROR] Failed to write to output file: %OUTPUT_FILE%
+                    )
+                )
+            )
         )
-                 REM Only add non-empty options after trimming
-         set "FINAL_LINE=!SINGLE_LINE: =!"
-         if not "!FINAL_LINE!"=="" (
-             echo [DEBUG] Writing to file: "%OUTPUT_FILE%"
-             echo !SINGLE_LINE! >> "%OUTPUT_FILE%"
-             if exist "%OUTPUT_FILE%" (
-                 echo [INFO] Added configuration option: !SINGLE_LINE!
-             ) else (
-                 echo [ERROR] Failed to write to output file: %OUTPUT_FILE%
-             )
-         )
     )
 )
 
