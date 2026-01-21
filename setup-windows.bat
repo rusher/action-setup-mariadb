@@ -714,6 +714,11 @@ if exist "%TEMP_CONF_FILE%" (
         echo [SUCCESS] Additional configuration options added to %CONFIG_FILE%
         echo [INFO] Configuration file updated with SSL/additional options
         echo [INFO] Note: Service restart may fail if certificate files don't exist
+        echo.
+        echo [DEBUG] ========== Final Configuration File Contents ==========
+        type "%CONFIG_FILE%"
+        echo [DEBUG] ========== End of Configuration File ==========
+        echo.
         exit /b 0
     ) else (
         echo [DEBUG] Temp config file is empty - no options to add
@@ -751,32 +756,54 @@ for /f "usebackq delims=" %%i in ("%TEMP_MULTILINE%") do (
     set "TRIMMED_LINE=!SINGLE_LINE: =!"
     if not "!TRIMMED_LINE!"=="" (
         REM Split space-separated parameters on the same line
-        for %%p in (!SINGLE_LINE!) do (
-            set "PARAM=%%p"
-            REM Skip empty parameters
-            if not "!PARAM!"=="" (
-                REM Remove -- prefix if present
-                if "!PARAM:~0,2!"=="--" (
-                    set "PARAM=!PARAM:~2!"
-                )
-                REM Only add non-empty options after trimming
-                set "FINAL_PARAM=!PARAM: =!"
-                if not "!FINAL_PARAM!"=="" (
-                    echo [DEBUG] Writing parameter to file: "!PARAM!"
-                    echo !PARAM! >> "%OUTPUT_FILE%"
-                    if exist "%OUTPUT_FILE%" (
-                        echo [INFO] Added configuration option: !PARAM!
-                    ) else (
-                        echo [ERROR] Failed to write to output file: %OUTPUT_FILE%
-                    )
-                )
-            )
-        )
+        REM Use a temporary variable to build each parameter
+        set "CURRENT_PARAM="
+        set "IN_PARAM=0"
+        
+        REM Process character by character to properly handle --param=value format
+        call :SplitParameters "!SINGLE_LINE!" "%OUTPUT_FILE%"
     )
 )
 
 REM Clean up temp file
 if exist "%TEMP_MULTILINE%" del "%TEMP_MULTILINE%"
+
+goto :eof
+
+:SplitParameters
+REM Function to split space-separated parameters while keeping key=value together
+set "LINE=%~1"
+set "OUTPUT_FILE=%~2"
+
+REM Split on " --" to separate parameters
+REM First normalize by ensuring all params start with --
+set "LINE=!LINE:--= --!"
+set "LINE=!LINE:  = !"
+
+REM Create temp file to store individual parameters
+set "TEMP_SPLIT=mariadb_split_%RANDOM%.txt"
+del "%TEMP_SPLIT%" 2>nul
+
+REM Use PowerShell to properly split the parameters
+powershell -NoProfile -Command "$line='%LINE%'; $params=$line -split ' --' | Where-Object {$_ -ne ''}; foreach($p in $params){$p.Trim()}" > "%TEMP_SPLIT%"
+
+REM Process each parameter from the file
+for /f "usebackq delims=" %%p in ("%TEMP_SPLIT%") do (
+    set "PARAM=%%p"
+    REM Skip empty parameters
+    if not "!PARAM!"=="" (
+        echo [DEBUG] Writing parameter to file: "!PARAM!"
+        echo !PARAM! >> "%OUTPUT_FILE%"
+        if exist "%OUTPUT_FILE%" (
+            echo [INFO] Added configuration option: !PARAM!
+        ) else (
+            echo [ERROR] Failed to write to output file: %OUTPUT_FILE%
+        )
+    )
+)
+
+REM Clean up
+if exist "%TEMP_SPLIT%" del "%TEMP_SPLIT%"
 
 goto :eof
 
