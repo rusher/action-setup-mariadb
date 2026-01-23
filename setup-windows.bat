@@ -272,9 +272,9 @@ REM Create database if specified
 if not "%MARIADB_DATABASE%"=="" (
     echo Creating database '%MARIADB_DATABASE%'...
     if not "!MARIADB_ROOT_PASSWORD!"=="" (
-        !MYSQL_CMD! -u root -p"!MARIADB_ROOT_PASSWORD!" -e "CREATE DATABASE IF NOT EXISTS `%MARIADB_DATABASE%`;"
+        !MYSQL_CMD! -u root -p"!MARIADB_ROOT_PASSWORD!" -e "CREATE DATABASE IF NOT EXISTS `%MARIADB_DATABASE%` CHARACTER SET utf8mb4;"
     ) else (
-        !MYSQL_CMD! -u root -e "CREATE DATABASE IF NOT EXISTS `%MARIADB_DATABASE%`;"
+        !MYSQL_CMD! -u root -e "CREATE DATABASE IF NOT EXISTS `%MARIADB_DATABASE%` CHARACTER SET utf8mb4;"
     )
     if !errorlevel!==0 (
         echo [SUCCESS] Database '%MARIADB_DATABASE%' created
