@@ -821,6 +821,50 @@ if [[ -n "${SETUP_CONFIGURATION_FILE}" && -f "${SETUP_CONFIGURATION_FILE}" ]]; t
         elif [[ -d "/etc/mysql/mariadb.conf.d" ]]; then
             sudo cp "${SETUP_CONFIGURATION_FILE}" "/etc/mysql/mariadb.conf.d/custom-config.cnf"
             echo "✅ Configuration file copied to /etc/mysql/mariadb.conf.d/custom-config.cnf"
+        elif [[ "$PKG_MANAGER" == "brew" ]]; then
+            # macOS Homebrew paths
+            BREW_MARIADB_PATHS=(
+                "$(brew --prefix)/etc/mariadb.conf.d"
+                "$(brew --prefix)/etc/mysql/conf.d"
+                "$(brew --prefix)/etc/my.cnf.d"
+                "/usr/local/etc/mariadb.conf.d"
+                "/usr/local/etc/mysql/conf.d"
+                "/usr/local/etc/my.cnf.d"
+            )
+            CONFIG_COPIED=false
+            for conf_path in "${BREW_MARIADB_PATHS[@]}"; do
+                if [[ -d "$conf_path" ]]; then
+                    sudo cp "${SETUP_CONFIGURATION_FILE}" "$conf_path/custom-config.cnf"
+                    echo "✅ Configuration file copied to $conf_path/custom-config.cnf"
+                    CONFIG_COPIED=true
+                    break
+                fi
+            done
+            if [[ "$CONFIG_COPIED" == "false" ]]; then
+                # Try to find MariaDB config file and create conf.d directory
+                MAIN_CONFIG_PATHS=(
+                    "$(brew --prefix)/etc/my.cnf"
+                    "/usr/local/etc/my.cnf"
+                    "$(brew --prefix mariadb)/etc/my.cnf" 2>/dev/null
+                    "$(brew --prefix mariadb@10.11)/etc/my.cnf" 2>/dev/null
+                    "$(brew --prefix mariadb@10.6)/etc/my.cnf" 2>/dev/null
+                )
+                for config_path in "${MAIN_CONFIG_PATHS[@]}"; do
+                    if [[ -f "$config_path" ]]; then
+                        CONFIG_DIR=$(dirname "$config_path")/mariadb.conf.d
+                        sudo mkdir -p "$CONFIG_DIR"
+                        sudo cp "${SETUP_CONFIGURATION_FILE}" "$CONFIG_DIR/custom-config.cnf"
+                        echo "✅ Created $CONFIG_DIR and copied configuration file"
+                        CONFIG_COPIED=true
+                        break
+                    fi
+                done
+            fi
+            if [[ "$CONFIG_COPIED" == "false" ]]; then
+                echo "❌ MariaDB configuration directory not found on macOS"
+                echo "   Tried paths: ${BREW_MARIADB_PATHS[*]}"
+                exit 1
+            fi
         else
             echo "❌ MariaDB configuration directory not found"
             exit 1
@@ -832,6 +876,22 @@ if [[ -n "${SETUP_CONFIGURATION_FILE}" && -f "${SETUP_CONFIGURATION_FILE}" ]]; t
             sudo cp "${SETUP_CONFIGURATION_FILE}" "/etc/mysql/conf.d/custom-config.cnf"
         elif [[ -d "/etc/mysql/mariadb.conf.d" ]]; then
             sudo cp "${SETUP_CONFIGURATION_FILE}" "/etc/mysql/mariadb.conf.d/custom-config.cnf"
+        elif [[ "$PKG_MANAGER" == "brew" ]]; then
+            # macOS Homebrew paths for empty file
+            BREW_MARIADB_PATHS=(
+                "$(brew --prefix)/etc/mariadb.conf.d"
+                "$(brew --prefix)/etc/mysql/conf.d"
+                "$(brew --prefix)/etc/my.cnf.d"
+                "/usr/local/etc/mariadb.conf.d"
+                "/usr/local/etc/mysql/conf.d"
+                "/usr/local/etc/my.cnf.d"
+            )
+            for conf_path in "${BREW_MARIADB_PATHS[@]}"; do
+                if [[ -d "$conf_path" ]]; then
+                    sudo cp "${SETUP_CONFIGURATION_FILE}" "$conf_path/custom-config.cnf"
+                    break
+                fi
+            done
         fi
     fi
 elif [[ -n "${SETUP_CONFIGURATION_FILE}" ]]; then
