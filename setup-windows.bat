@@ -327,8 +327,25 @@ if defined SETUP_CONFIGURATION_FILE (
                     echo [INFO] Copying configuration file to MariaDB config directory
                     echo [DEBUG] Config file found: %CONFIG_FILE%
                     
+                    REM Log the content of my.ini to see included directories
+                    echo [DEBUG] ========== MariaDB Configuration File Content ==========
+                    type "%CONFIG_FILE%"
+                    echo [DEBUG] ========== End of Configuration File ==========
+                    echo.
+                    
+                    REM Check for existing conf.d directories
+                    echo [DEBUG] Checking for conf.d directories...
+                    for %%F in ("%CONFIG_FILE%") do set "CONFIG_BASE_DIR=%%~dpF"
+                    if exist "%CONFIG_BASE_DIR%conf.d" (
+                        echo [DEBUG] Found conf.d directory: %CONFIG_BASE_DIR%conf.d
+                        dir "%CONFIG_BASE_DIR%conf.d" /b
+                    ) else (
+                        echo [DEBUG] No conf.d directory found at: %CONFIG_BASE_DIR%conf.d
+                    )
+                    
                     REM Extract the directory from the full config file path
-                    for %%F in ("%CONFIG_FILE%") do set "CONFIG_DIR=%%~dpF"
+                    REM Use PowerShell to handle paths with spaces correctly
+                    for /f "usebackq delims=" %%D in (`powershell -Command "Split-Path '%CONFIG_FILE%'"`) do set "CONFIG_DIR=%%D"
                     echo [DEBUG] Config directory: %CONFIG_DIR%
                     echo [DEBUG] Source file: %SETUP_CONFIGURATION_FILE%
                     echo [DEBUG] Destination file: %CONFIG_DIR%custom-config.cnf"
@@ -363,7 +380,8 @@ if defined SETUP_CONFIGURATION_FILE (
                 if not "%CONFIG_FILE%"=="" (
                     echo [DEBUG] Config file found: %CONFIG_FILE%
                     REM Extract the directory from the full config file path
-                    for %%F in ("%CONFIG_FILE%") do set "CONFIG_DIR=%%~dpF"
+                    REM Use PowerShell to handle paths with spaces correctly
+                    for /f "usebackq delims=" %%D in (`powershell -Command "Split-Path '%CONFIG_FILE%'"`) do set "CONFIG_DIR=%%D"
                     echo [DEBUG] Config directory: %CONFIG_DIR%
                     echo [DEBUG] Source file: %SETUP_CONFIGURATION_FILE%
                     echo [DEBUG] Destination file: %CONFIG_DIR%custom-config.cnf"
