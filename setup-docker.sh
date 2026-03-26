@@ -101,7 +101,17 @@ fi
 # SETUP_SCRIPTS
 if [[ -n "${SETUP_CONF_SCRIPT_FOLDER}" ]]; then
     echo "✅ setup scripts from ${SETUP_CONF_SCRIPT_FOLDER}"
-    CONTAINER_ARGS+=("-v" "${SETUP_CONF_SCRIPT_FOLDER}:/etc/mysql/conf.d:ro")
+    
+    # Check if SSL certificate files exist in the conf script folder
+    if [[ -f "${SETUP_CONF_SCRIPT_FOLDER}/ca.crt" && -f "${SETUP_CONF_SCRIPT_FOLDER}/server.crt" && -f "${SETUP_CONF_SCRIPT_FOLDER}/server.key" ]]; then
+        echo "✅ SSL certificates found in ${SETUP_CONF_SCRIPT_FOLDER}"
+        CONTAINER_ARGS+=("-v" "${SETUP_CONF_SCRIPT_FOLDER}:/etc/mysql/conf.d")
+    else
+        echo "⚠️ SSL certificates not found in ${SETUP_CONF_SCRIPT_FOLDER}"
+        echo "   Expected files: ca.crt, server.crt, server.key"
+        echo "   Mounting configuration folder anyway, but SSL may not work properly"
+        CONTAINER_ARGS+=("-v" "${SETUP_CONF_SCRIPT_FOLDER}:/etc/mysql/conf.d")
+    fi
 fi
 
 # STARTUP_SCRIPTS
@@ -248,10 +258,14 @@ if [[ "${exit_code}" == "0" ]]; then
         EXIT_VALUE=1
     fi
     
-    echo "🔎 Container logs:"
-    "${CONTAINER_RUNTIME}" logs mariadbcontainer
-    
-    if [[ "${EXIT_VALUE}" != "1" ]]; then
+    if [[ "${EXIT_VALUE}" == "1" ]]; then
+        echo "::group::❌ Database failed to start or become healthy."
+        echo "🔎 Container logs:"
+        "${CONTAINER_RUNTIME}" logs mariadbcontainer
+        echo "::endgroup::"
+    else
+        echo "🔎 Container logs:"
+        "${CONTAINER_RUNTIME}" logs mariadbcontainer
         echo "::group::✅ Database is ready!"
         # Display password check settings
         echo "🔍 Checking password validation settings..."
@@ -267,13 +281,13 @@ if [[ "${exit_code}" == "0" ]]; then
         echo "✅ Database type exported: container"
         # Set output variable for the action
         echo "database-type=container" >> $GITHUB_OUTPUT
-    else
-        echo "::group::❌ Database failed to start or become healthy."
+        echo "::endgroup::"
     fi
 else
+    echo "::group::❌ Database failed to start on time."
     echo "🔎 Container logs:"
     "${CONTAINER_RUNTIME}" logs mariadbcontainer
-    echo "::group::❌ Database failed to start on time."
+    echo "::endgroup::"
     EXIT_VALUE=1
 fi
 
