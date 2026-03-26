@@ -341,6 +341,36 @@ if [[ "${exit_code}" == "0" ]]; then
         echo '=== /etc/my.cnf (MariaDB reads this by default) ==='
         if [[ -f /etc/my.cnf ]]; then
             cat /etc/my.cnf
+            echo ''
+            echo '--- Processing !includedir directives from /etc/my.cnf ---'
+            # Extract includedir paths from my.cnf
+            included_dirs=$(grep '!includedir' /etc/my.cnf 2>/dev/null | awk '{print $2}' || true)
+            if [[ -n \"\$included_dirs\" ]]; then
+                echo \"Found includedir paths: \$included_dirs\"
+                echo ''
+                for dir in \$included_dirs; do
+                    echo \"=== Contents of \$dir ===\"
+                    if [[ -d \"\$dir\" ]]; then
+                        ls -la \"\$dir\"
+                        echo ''
+                        echo 'Configuration files in this directory:'
+                        find \"\$dir\" -name '*.cnf' -o -name '*.conf' | sort | while read conf_file; do
+                            echo \"--- \$conf_file ---\"
+                            if [[ -f \"\$conf_file\" ]]; then
+                                cat \"\$conf_file\"
+                            else
+                                echo 'File does not exist'
+                            fi
+                            echo ''
+                        done
+                    else
+                        echo \"Directory \$dir does not exist\"
+                    fi
+                    echo ''
+                done
+            else
+                echo 'No !includedir directives found in /etc/my.cnf'
+            fi
         else
             echo 'File /etc/my.cnf does not exist'
         fi
