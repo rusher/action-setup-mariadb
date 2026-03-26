@@ -99,27 +99,26 @@ if [[ -n "${SETUP_PASSWORD}" ]]; then
 fi
 
 # SETUP_SCRIPTS
-if [[ -n "${SETUP_SSL_SCRIPT_FOLDER}" ]]; then
-    echo "✅ setup scripts from ${SETUP_SSL_SCRIPT_FOLDER}"
+if [[ -n "${SETUP_CONFIGURATION_FILE}" ]]; then
+    echo "✅ configuration file from ${SETUP_CONFIGURATION_FILE}"
     
-    # Check if SSL certificate files exist in the conf script folder
-    if [[ -f "${SETUP_SSL_SCRIPT_FOLDER}/ca.crt" && -f "${SETUP_SSL_SCRIPT_FOLDER}/server.crt" && -f "${SETUP_SSL_SCRIPT_FOLDER}/server.key" ]]; then
-        echo "✅ SSL certificates found in ${SETUP_SSL_SCRIPT_FOLDER}"
+    # Check if the configuration file exists
+    if [[ -f "${SETUP_CONFIGURATION_FILE}" ]]; then
+        echo "✅ Configuration file found: ${SETUP_CONFIGURATION_FILE}"
         
-        # Verify SSL certificates are readable and not empty
-        if [[ -s "${SETUP_SSL_SCRIPT_FOLDER}/ca.crt" && -s "${SETUP_SSL_SCRIPT_FOLDER}/server.crt" && -s "${SETUP_SSL_SCRIPT_FOLDER}/server.key" ]]; then
-            echo "✅ SSL certificates are valid and non-empty"
-            # Mount certificates to a subdirectory to avoid conflicts with existing config files
-            CONTAINER_ARGS+=("-v" "${SETUP_SSL_SCRIPT_FOLDER}:/etc/mysql/ssl")
+        # Verify configuration file is readable and not empty
+        if [[ -s "${SETUP_CONFIGURATION_FILE}" ]]; then
+            echo "✅ Configuration file is valid and non-empty"
+            # Mount the configuration file to /etc/mysql/conf.d/
+            CONTAINER_ARGS+=("-v" "${SETUP_CONFIGURATION_FILE}:/etc/mysql/conf.d/custom-config.cnf")
         else
-            echo "⚠️ SSL certificates exist but some may be empty"
-            CONTAINER_ARGS+=("-v" "${SETUP_SSL_SCRIPT_FOLDER}:/etc/mysql/ssl")
+            echo "⚠️ Configuration file exists but is empty"
+            CONTAINER_ARGS+=("-v" "${SETUP_CONFIGURATION_FILE}:/etc/mysql/conf.d/custom-config.cnf")
         fi
     else
-        echo "⚠️ SSL certificates not found in ${SETUP_SSL_SCRIPT_FOLDER}"
-        echo "   Expected files: ca.crt, server.crt, server.key"
-        echo "   Mounting configuration folder anyway, but SSL may not work properly"
-        CONTAINER_ARGS+=("-v" "${SETUP_SSL_SCRIPT_FOLDER}:/etc/mysql/ssl")
+        echo "❌ Configuration file not found: ${SETUP_CONFIGURATION_FILE}"
+        echo "   Please provide a valid configuration file path"
+        exit 1
     fi
 fi
 

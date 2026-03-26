@@ -66,8 +66,8 @@ inputs:
     description: 'additional configuration directory'
     required: false
 
-  ssl-script-folder:
-    description: 'ssl directory'
+  configuration-file:
+    description: 'configuration file to add to /etc/mysql/conf.d/'
     required: false
 
   additional-conf:
@@ -105,7 +105,7 @@ runs:
         SETUP_PASSWORD: ${{ inputs.password }}
         SETUP_DATABASE: ${{ inputs.database }}
         SETUP_CONF_SCRIPT_FOLDER: ${{ inputs.conf-script-folder }}
-        SETUP_SSL_SCRIPT_FOLDER: ${{ inputs.ssl-script-folder }}
+        SETUP_CONFIGURATION_FILE: ${{ inputs.configuration-file }}
         SETUP_ADDITIONAL_CONF: ${{ inputs.additional-conf }}
         SETUP_INIT_SCRIPT_FOLDER: ${{ inputs.init-script-folder }}
     - name: Setup local macos / linux database
@@ -123,7 +123,7 @@ runs:
         SETUP_PASSWORD: ${{ inputs.password }}
         SETUP_DATABASE: ${{ inputs.database }}
         SETUP_CONF_SCRIPT_FOLDER: ${{ inputs.conf-script-folder }}
-        SETUP_SSL_SCRIPT_FOLDER: ${{ inputs.ssl-script-folder }}
+        SETUP_CONFIGURATION_FILE: ${{ inputs.configuration-file }}
         SETUP_ADDITIONAL_CONF: ${{ inputs.additional-conf }}
         SETUP_INIT_SCRIPT_FOLDER: ${{ inputs.init-script-folder }}
     - name: Setup local windows database
@@ -141,6 +141,6 @@ runs:
         SETUP_PASSWORD: ${{ inputs.password }}
         SETUP_DATABASE: ${{ inputs.database }}
         SETUP_CONF_SCRIPT_FOLDER: ${{ inputs.conf-script-folder }}
-        SETUP_SSL_SCRIPT_FOLDER: ${{ inputs.ssl-script-folder }}
+        SETUP_CONFIGURATION_FILE: ${{ inputs.configuration-file }}
         SETUP_ADDITIONAL_CONF: ${{ inputs.additional-conf }}
         SETUP_INIT_SCRIPT_FOLDER: ${{ inputs.init-script-folder }}

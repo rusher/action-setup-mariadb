@@ -807,6 +807,39 @@ if [[ -n "${SETUP_CONF_SCRIPT_FOLDER}" && -d "${SETUP_CONF_SCRIPT_FOLDER}" ]]; t
     done
 fi
 
+# Process single configuration file if provided
+if [[ -n "${SETUP_CONFIGURATION_FILE}" && -f "${SETUP_CONFIGURATION_FILE}" ]]; then
+    echo "✅ Processing configuration file: ${SETUP_CONFIGURATION_FILE}"
+    
+    # Verify configuration file is readable and not empty
+    if [[ -s "${SETUP_CONFIGURATION_FILE}" ]]; then
+        echo "✅ Configuration file is valid and non-empty"
+        # Copy configuration file to MariaDB conf.d directory
+        if [[ -d "/etc/mysql/conf.d" ]]; then
+            sudo cp "${SETUP_CONFIGURATION_FILE}" "/etc/mysql/conf.d/custom-config.cnf"
+            echo "✅ Configuration file copied to /etc/mysql/conf.d/custom-config.cnf"
+        elif [[ -d "/etc/mysql/mariadb.conf.d" ]]; then
+            sudo cp "${SETUP_CONFIGURATION_FILE}" "/etc/mysql/mariadb.conf.d/custom-config.cnf"
+            echo "✅ Configuration file copied to /etc/mysql/mariadb.conf.d/custom-config.cnf"
+        else
+            echo "❌ MariaDB configuration directory not found"
+            exit 1
+        fi
+    else
+        echo "⚠️ Configuration file exists but is empty"
+        # Copy empty file anyway
+        if [[ -d "/etc/mysql/conf.d" ]]; then
+            sudo cp "${SETUP_CONFIGURATION_FILE}" "/etc/mysql/conf.d/custom-config.cnf"
+        elif [[ -d "/etc/mysql/mariadb.conf.d" ]]; then
+            sudo cp "${SETUP_CONFIGURATION_FILE}" "/etc/mysql/mariadb.conf.d/custom-config.cnf"
+        fi
+    fi
+elif [[ -n "${SETUP_CONFIGURATION_FILE}" ]]; then
+    echo "❌ Configuration file not found: ${SETUP_CONFIGURATION_FILE}"
+    echo "   Please provide a valid configuration file path"
+    exit 1
+fi
+
 # Run initialization scripts if provided
 if [[ -n "${SETUP_INIT_SCRIPT_FOLDER}" && -d "${SETUP_INIT_SCRIPT_FOLDER}" ]]; then
     echo "✅ Processing initialization scripts from ${SETUP_INIT_SCRIPT_FOLDER}"
