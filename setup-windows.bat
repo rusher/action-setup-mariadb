@@ -154,12 +154,21 @@ if %errorlevel%==0 (
 
 echo [INFO] No existing MariaDB installation detected, proceeding with installation...
 
-REM Install MariaDB
+REM Pre-installation cleanup to avoid conflicts
+echo [INFO] Performing pre-installation cleanup...
+echo [INFO] Stopping any running MySQL/MariaDB services...
+net stop MySQL >nul 2>&1
+net stop MariaDB >nul 2>&1
+net stop mariadb >nul 2>&1
+
+REM Install MariaDB with enhanced options to prevent prompts
 echo Installing MariaDB using Chocolatey...
 if not "%MARIADB_VERSION%"=="" (
-    choco install mariadb --version=%MARIADB_VERSION% -y
+    echo [INFO] Installing MariaDB version %MARIADB_VERSION%...
+    choco install mariadb --version=%MARIADB_VERSION% -y --force --ignore-package-exit-codes --params "/InstallType:ALL"
 ) else (
-    choco install mariadb -y
+    echo [INFO] Installing latest MariaDB version...
+    choco install mariadb -y --force --ignore-package-exit-codes --params "/InstallType:ALL"
 )
 if !errorlevel! neq 0 (
     echo [ERROR] Failed to install MariaDB via Chocolatey
