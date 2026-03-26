@@ -211,6 +211,34 @@ if [[ "${exit_code}" == "0" ]]; then
     # Initial wait before starting health checks
     sleep 2
     
+    # Validate SSL certificates inside container before checking database connection
+    echo "🔍 Validating SSL certificates inside container..."
+    if "${CONTAINER_RUNTIME}" exec mariadbcontainer bash -c "
+        echo 'Checking /etc/mysql/conf.d/ contents:'
+        ls -la /etc/mysql/conf.d/
+        echo ''
+        if [[ -f /etc/mysql/conf.d/ca.crt && -f /etc/mysql/conf.d/server.crt && -f /etc/mysql/conf.d/server.key ]]; then
+            echo '✅ SSL certificate files found in container'
+            echo 'CA certificate:'
+            openssl x509 -in /etc/mysql/conf.d/ca.crt -text -noout | head -10
+            echo 'Server certificate:'
+            openssl x509 -in /etc/mysql/conf.d/server.crt -text -noout | head -10
+            echo 'Server key:'
+            openssl rsa -in /etc/mysql/conf.d/server.key -check -noout
+            echo '✅ SSL certificates validation completed'
+        else
+            echo '❌ SSL certificate files NOT found in container'
+            echo 'Expected files: ca.crt, server.crt, server.key'
+            exit 1
+        fi
+    "; then
+        echo "✅ SSL certificates validated successfully"
+    else
+        echo "❌ SSL certificate validation failed"
+        echo "🔎 Container debug info:"
+        "${CONTAINER_RUNTIME}" exec mariadbcontainer bash -c "echo 'Container mount points:'; mount | grep conf.d"
+    fi
+    
     # Wait for database to be ready by testing connection directly
     timeout=60
     elapsed=0
