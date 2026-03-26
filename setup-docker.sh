@@ -224,11 +224,31 @@ if [[ "${exit_code}" == "0" ]]; then
     # Validate SSL certificates inside container before checking database connection
     echo "🔍 Validating SSL certificates inside container..."
     if "${CONTAINER_RUNTIME}" exec mariadbcontainer bash -c "
+        echo 'Checking /etc/mysql/ contents:'
+        ls -la /etc/mysql/
+        echo ''
+        echo 'Checking base MariaDB configuration files:'
+        for config_file in /etc/mysql/my.cnf /etc/mysql/mariadb.cnf /etc/mysql/my.cnf.d/*.cnf; do
+            if [[ -f \"\$config_file\" ]]; then
+                echo \"=== \$config_file ===\"
+                cat \"\$config_file\"
+                echo ''
+            fi
+        done
+        echo ''
         echo 'Checking /etc/mysql/conf.d/ contents:'
         ls -la /etc/mysql/conf.d/
         echo ''
-        echo 'Checking SSL subdirectory:'
-        ls -la /etc/mysql/conf.d/ssl/
+        echo 'Checking SSL directory:'
+        if [[ -d /etc/mysql/ssl ]]; then
+            echo 'Found /etc/mysql/ssl/:'
+            ls -la /etc/mysql/ssl/
+        elif [[ -d /etc/mysql/conf.d/ssl ]]; then
+            echo 'Found /etc/mysql/conf.d/ssl/:'
+            ls -la /etc/mysql/conf.d/ssl/
+        else
+            echo 'No SSL directory found'
+        fi
         echo ''
         echo 'Checking all configuration files in /etc/mysql/conf.d/:'
         for conf_file in /etc/mysql/conf.d/*.cnf /etc/mysql/conf.d/*.conf; do
@@ -239,8 +259,20 @@ if [[ "${exit_code}" == "0" ]]; then
             fi
         done
         echo ''
-        if [[ -f /etc/mysql/conf.d/ssl/ca.crt && -f /etc/mysql/conf.d/ssl/server.crt && -f /etc/mysql/conf.d/ssl/server.key ]]; then
-            echo '✅ SSL certificate files found in container'
+        # Check SSL certificates in the correct location based on mount point
+        ssl_cert_found=false
+        if [[ -f /etc/mysql/ssl/ca.crt && -f /etc/mysql/ssl/server.crt && -f /etc/mysql/ssl/server.key ]]; then
+            echo '✅ SSL certificate files found in /etc/mysql/ssl/'
+            echo 'CA certificate info:'
+            openssl x509 -in /etc/mysql/ssl/ca.crt -text -noout | head -5
+            echo 'Server certificate info:'
+            openssl x509 -in /etc/mysql/ssl/server.crt -text -noout | head -5
+            echo 'Server key validation:'
+            openssl rsa -in /etc/mysql/ssl/server.key -check -noout
+            echo '✅ SSL certificates validation completed'
+            ssl_cert_found=true
+        elif [[ -f /etc/mysql/conf.d/ssl/ca.crt && -f /etc/mysql/conf.d/ssl/server.crt && -f /etc/mysql/conf.d/ssl/server.key ]]; then
+            echo '✅ SSL certificate files found in /etc/mysql/conf.d/ssl/'
             echo 'CA certificate info:'
             openssl x509 -in /etc/mysql/conf.d/ssl/ca.crt -text -noout | head -5
             echo 'Server certificate info:'
@@ -248,11 +280,14 @@ if [[ "${exit_code}" == "0" ]]; then
             echo 'Server key validation:'
             openssl rsa -in /etc/mysql/conf.d/ssl/server.key -check -noout
             echo '✅ SSL certificates validation completed'
+            ssl_cert_found=true
         else
             echo '❌ SSL certificate files NOT found in container'
-            echo 'Expected files: /etc/mysql/conf.d/ssl/ca.crt, /etc/mysql/conf.d/ssl/server.crt, /etc/mysql/conf.d/ssl/server.key'
+            echo 'Expected files: ca.crt, server.crt, server.key'
             echo 'Files actually present:'
-            find /etc/mysql/conf.d/ -type f -exec ls -la {} \;
+            find /etc/mysql/ -name '*.crt' -o -name '*.key' -o -name '*.pem' | while read f; do
+                ls -la \"\$f\"
+            done
             exit 1
         fi
     "; then
@@ -260,7 +295,7 @@ if [[ "${exit_code}" == "0" ]]; then
     else
         echo "❌ SSL certificate validation failed"
         echo "🔎 Container debug info:"
-        "${CONTAINER_RUNTIME}" exec mariadbcontainer bash -c "echo 'Container mount points:'; mount | grep conf.d"
+        "${CONTAINER_RUNTIME}" exec mariadbcontainer bash -c "echo 'Container mount points:'; mount | grep -E '(conf.d|ssl)'"
     fi
     
     # Wait for database to be ready by testing connection directly
