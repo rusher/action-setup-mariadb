@@ -224,78 +224,137 @@ if [[ "${exit_code}" == "0" ]]; then
     # Validate SSL certificates inside container before checking database connection
     echo "🔍 Validating SSL certificates inside container..."
     if "${CONTAINER_RUNTIME}" exec mariadbcontainer bash -c "
-        echo 'Checking /etc/mysql/ contents:'
-        ls -la /etc/mysql/
-        echo ''
-        echo 'Checking base MariaDB configuration files:'
-        for config_file in /etc/mysql/my.cnf /etc/mysql/mariadb.cnf /etc/mysql/my.cnf.d/*.cnf; do
-            if [[ -f \"\$config_file\" ]]; then
-                echo \"=== \$config_file ===\"
-                cat \"\$config_file\"
-                echo ''
-            fi
-        done
-        echo ''
-        echo 'Checking /etc/mysql/conf.d/ contents:'
-        ls -la /etc/mysql/conf.d/
-        echo ''
-        echo 'Checking SSL directory:'
+        echo '=== SSL CERTIFICATE VALIDATION ==='
+        
+        # Check SSL directories
+        ssl_dir=''
         if [[ -d /etc/mysql/ssl ]]; then
-            echo 'Found /etc/mysql/ssl/:'
-            ls -la /etc/mysql/ssl/
+            ssl_dir='/etc/mysql/ssl'
+            echo 'SSL directory found: /etc/mysql/ssl/'
         elif [[ -d /etc/mysql/conf.d/ssl ]]; then
-            echo 'Found /etc/mysql/conf.d/ssl/:'
-            ls -la /etc/mysql/conf.d/ssl/
+            ssl_dir='/etc/mysql/conf.d/ssl'
+            echo 'SSL directory found: /etc/mysql/conf.d/ssl/'
         else
-            echo 'No SSL directory found'
-        fi
-        echo ''
-        echo 'Checking all configuration files in /etc/mysql/conf.d/:'
-        for conf_file in /etc/mysql/conf.d/*.cnf /etc/mysql/conf.d/*.conf; do
-            if [[ -f \"\$conf_file\" ]]; then
-                echo \"=== \$conf_file ===\"
-                cat \"\$conf_file\"
-                echo ''
-            fi
-        done
-        echo ''
-        # Check SSL certificates in the correct location based on mount point
-        ssl_cert_found=false
-        if [[ -f /etc/mysql/ssl/ca.crt && -f /etc/mysql/ssl/server.crt && -f /etc/mysql/ssl/server.key ]]; then
-            echo '✅ SSL certificate files found in /etc/mysql/ssl/'
-            echo 'CA certificate info:'
-            openssl x509 -in /etc/mysql/ssl/ca.crt -text -noout | head -5
-            echo 'Server certificate info:'
-            openssl x509 -in /etc/mysql/ssl/server.crt -text -noout | head -5
-            echo 'Server key validation:'
-            openssl rsa -in /etc/mysql/ssl/server.key -check -noout
-            echo '✅ SSL certificates validation completed'
-            ssl_cert_found=true
-        elif [[ -f /etc/mysql/conf.d/ssl/ca.crt && -f /etc/mysql/conf.d/ssl/server.crt && -f /etc/mysql/conf.d/ssl/server.key ]]; then
-            echo '✅ SSL certificate files found in /etc/mysql/conf.d/ssl/'
-            echo 'CA certificate info:'
-            openssl x509 -in /etc/mysql/conf.d/ssl/ca.crt -text -noout | head -5
-            echo 'Server certificate info:'
-            openssl x509 -in /etc/mysql/conf.d/ssl/server.crt -text -noout | head -5
-            echo 'Server key validation:'
-            openssl rsa -in /etc/mysql/conf.d/ssl/server.key -check -noout
-            echo '✅ SSL certificates validation completed'
-            ssl_cert_found=true
-        else
-            echo '❌ SSL certificate files NOT found in container'
-            echo 'Expected files: ca.crt, server.crt, server.key'
-            echo 'Files actually present:'
-            find /etc/mysql/ -name '*.crt' -o -name '*.key' -o -name '*.pem' | while read f; do
-                ls -la \"\$f\"
-            done
+            echo '❌ No SSL directory found'
             exit 1
         fi
+        
+        echo 'SSL directory contents:'
+        ls -la \"\$ssl_dir/\"
+        echo ''
+        
+        # Check required SSL files
+        ca_file=\"\$ssl_dir/ca.crt\"
+        cert_file=\"\$ssl_dir/server.crt\"
+        key_file=\"\$ssl_dir/server.key\"
+        
+        if [[ ! -f \"\$ca_file\" ]]; then
+            echo \"❌ CA certificate not found: \$ca_file\"
+            exit 1
+        fi
+        
+        if [[ ! -f \"\$cert_file\" ]]; then
+            echo \"❌ Server certificate not found: \$cert_file\"
+            exit 1
+        fi
+        
+        if [[ ! -f \"\$key_file\" ]]; then
+            echo \"❌ Server key not found: \$key_file\"
+            exit 1
+        fi
+        
+        echo '✅ All required SSL files found'
+        echo ''
+        
+        # Validate CA certificate
+        echo '--- CA Certificate Validation ---'
+        if openssl x509 -in \"\$ca_file\" -noout -checkend 0 2>/dev/null; then
+            echo '✅ CA certificate is valid'
+            openssl x509 -in \"\$ca_file\" -noout -subject -issuer
+        else
+            echo '❌ CA certificate is invalid or expired'
+            openssl x509 -in \"\$ca_file\" -noout -checkend 0 2>&1 || true
+            exit 1
+        fi
+        echo ''
+        
+        # Validate server certificate
+        echo '--- Server Certificate Validation ---'
+        if openssl x509 -in \"\$cert_file\" -noout -checkend 0 2>/dev/null; then
+            echo '✅ Server certificate is valid'
+            openssl x509 -in \"\$cert_file\" -noout -subject -issuer
+        else
+            echo '❌ Server certificate is invalid or expired'
+            openssl x509 -in \"\$cert_file\" -noout -checkend 0 2>&1 || true
+            exit 1
+        fi
+        echo ''
+        
+        # Validate server key
+        echo '--- Server Key Validation ---'
+        if openssl rsa -in \"\$key_file\" -check -noout 2>/dev/null; then
+            echo '✅ Server key is valid'
+        else
+            echo '❌ Server key is invalid'
+            openssl rsa -in \"\$key_file\" -check -noout 2>&1 || true
+            exit 1
+        fi
+        echo ''
+        
+        # Verify certificate and key match
+        echo '--- Certificate-Key Match Validation ---'
+        cert_modulus=\$(openssl x509 -noout -modulus -in \"\$cert_file\" 2>/dev/null)
+        key_modulus=\$(openssl rsa -noout -modulus -in \"\$key_file\" 2>/dev/null)
+        
+        if [[ \"\$cert_modulus\" == \"\$key_modulus\" ]]; then
+            echo '✅ Server certificate and key match'
+        else
+            echo '❌ Server certificate and key do not match'
+            exit 1
+        fi
+        echo ''
+        
+        echo '🎉 SSL certificate validation completed successfully!'
     "; then
         echo "✅ SSL certificates validated successfully"
     else
         echo "❌ SSL certificate validation failed"
         echo "🔎 Container debug info:"
-        "${CONTAINER_RUNTIME}" exec mariadbcontainer bash -c "echo 'Container mount points:'; mount | grep -E '(conf.d|ssl)'"
+        "${CONTAINER_RUNTIME}" exec mariadbcontainer bash -c "echo 'SSL-related files:'; find /etc/mysql/ -name '*.crt' -o -name '*.key' -o -name '*.pem' | head -10"
+    fi
+    
+    # Log all MariaDB configuration files
+    echo "🔍 Logging MariaDB configuration files..."
+    if "${CONTAINER_RUNTIME}" exec mariadbcontainer bash -c "
+        echo '=== MARIA DB CONFIGURATION FILES LOG ==='
+        
+        # Get MariaDB to show all loaded configuration files
+        echo '--- MariaDB --verbose --help output ---'
+        mariadbd --verbose --help 2>&1 | grep -A 50 'Default options' || echo 'Could not get default options from help'
+        echo ''
+        
+        echo '--- All configuration files in /etc/mysql/ ---'
+        find /etc/mysql/ -name '*.cnf' -o -name '*.conf' | grep -v ssl | sort | while read conf_file; do
+            echo \"=== \$conf_file ===\"
+            if [[ -f \"\$conf_file\" ]]; then
+                cat \"\$conf_file\"
+            else
+                echo 'File does not exist'
+            fi
+            echo ''
+        done
+        
+        echo '--- MariaDB configuration include test ---'
+        echo 'Testing which config files MariaDB would load:'
+        if command -v mariadbd &> /dev/null; then
+            mariadbd --help --verbose 2>&1 | grep -E '(my.cnf|conf.d)' || echo 'Could not determine config file loading'
+        else
+            mysqld --help --verbose 2>&1 | grep -E '(my.cnf|conf.d)' || echo 'Could not determine config file loading'
+        fi
+    "; then
+        echo "✅ Configuration files logged successfully"
+    else
+        echo "⚠️ Could not log all configuration files"
     fi
     
     # Wait for database to be ready by testing connection directly
