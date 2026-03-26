@@ -370,27 +370,27 @@ if [[ "${exit_code}" == "0" ]]; then
             echo 'Manual processing of !includedir lines:'
             # Read the file line by line and extract !includedir paths
             while IFS= read -r line; do
-                if [[ \"\$line\" == *!includedir* ]]; then
+                if [[ "$line" == *!includedir* ]]; then
                     # Extract the path after !includedir
-                    path=\$(echo \"\$line\" | sed 's/.*!includedir[[:space:]]*//' | sed 's/[[:space:]]*$//')
-                    if [[ -n \"\$path\" ]]; then
-                        echo \"Found includedir: \$path\"
-                        echo \"=== Contents of \$path ===\"
-                        if [[ -d \"\$path\" ]]; then
-                            ls -la \"\$path\"
+                    path=$(echo "$line" | sed 's/.*!includedir[[:space:]]*//' | sed 's/[[:space:]]*$//')
+                    if [[ -n "$path" ]]; then
+                        echo "Found includedir: $path"
+                        echo "=== Contents of $path ==="
+                        if [[ -d "$path" ]]; then
+                            ls -la "$path"
                             echo ''
                             echo 'Configuration files in this directory:'
-                            find \"\$path\" -name '*.cnf' -o -name '*.conf' | sort | while read conf_file; do
-                                echo \"--- \$conf_file ---\"
-                                if [[ -f \"\$conf_file\" ]]; then
-                                    cat \"\$conf_file\"
+                            find "$path" -name '*.cnf' -o -name '*.conf' | sort | while read conf_file; do
+                                echo "--- $conf_file ---"
+                                if [[ -f "$conf_file" ]]; then
+                                    cat "$conf_file"
                                 else
                                     echo 'File does not exist'
                                 fi
                                 echo ''
                             done
                         else
-                            echo \"Directory \$path does not exist\"
+                            echo "Directory $path does not exist"
                         fi
                         echo ''
                     fi
