@@ -325,9 +325,13 @@ if defined SETUP_CONFIGURATION_FILE (
                 call :FindMariaDBConfigFile CONFIG_FILE
                 if not "%CONFIG_FILE%"=="" (
                     echo [INFO] Copying configuration file to MariaDB config directory
+                    echo [DEBUG] Config file found: %CONFIG_FILE%
                     
                     REM Extract the directory from the full config file path
                     for %%F in ("%CONFIG_FILE%") do set "CONFIG_DIR=%%~dpF"
+                    echo [DEBUG] Config directory: %CONFIG_DIR%
+                    echo [DEBUG] Source file: %SETUP_CONFIGURATION_FILE%
+                    echo [DEBUG] Destination file: %CONFIG_DIR%custom-config.cnf"
                     
                     REM Copy the configuration file to the same directory as the main config
                     copy "%SETUP_CONFIGURATION_FILE%" "%CONFIG_DIR%custom-config.cnf" >nul
@@ -335,6 +339,17 @@ if defined SETUP_CONFIGURATION_FILE (
                         echo [SUCCESS] Configuration file copied to %CONFIG_DIR%custom-config.cnf
                     ) else (
                         echo [ERROR] Failed to copy configuration file
+                        echo [DEBUG] Attempting to verify file paths...
+                        if exist "%SETUP_CONFIGURATION_FILE%" (
+                            echo [DEBUG] Source file exists: %SETUP_CONFIGURATION_FILE%
+                        ) else (
+                            echo [DEBUG] Source file NOT found: %SETUP_CONFIGURATION_FILE%
+                        )
+                        if exist "%CONFIG_DIR%" (
+                            echo [DEBUG] Destination directory exists: %CONFIG_DIR%
+                        ) else (
+                            echo [DEBUG] Destination directory NOT found: %CONFIG_DIR%
+                        )
                         exit /b 1
                     )
                 ) else (
@@ -346,8 +361,12 @@ if defined SETUP_CONFIGURATION_FILE (
                 REM Copy empty file anyway
                 call :FindMariaDBConfigFile CONFIG_FILE
                 if not "%CONFIG_FILE%"=="" (
+                    echo [DEBUG] Config file found: %CONFIG_FILE%
                     REM Extract the directory from the full config file path
                     for %%F in ("%CONFIG_FILE%") do set "CONFIG_DIR=%%~dpF"
+                    echo [DEBUG] Config directory: %CONFIG_DIR%
+                    echo [DEBUG] Source file: %SETUP_CONFIGURATION_FILE%
+                    echo [DEBUG] Destination file: %CONFIG_DIR%custom-config.cnf"
                     copy "%SETUP_CONFIGURATION_FILE%" "%CONFIG_DIR%custom-config.cnf" >nul
                 )
             )
