@@ -217,18 +217,29 @@ if [[ "${exit_code}" == "0" ]]; then
         echo 'Checking /etc/mysql/conf.d/ contents:'
         ls -la /etc/mysql/conf.d/
         echo ''
+        echo 'Checking all configuration files in /etc/mysql/conf.d/:'
+        for conf_file in /etc/mysql/conf.d/*.cnf /etc/mysql/conf.d/*.conf; do
+            if [[ -f \"\$conf_file\" ]]; then
+                echo \"=== \$conf_file ===\"
+                cat \"\$conf_file\"
+                echo ''
+            fi
+        done
+        echo ''
         if [[ -f /etc/mysql/conf.d/ca.crt && -f /etc/mysql/conf.d/server.crt && -f /etc/mysql/conf.d/server.key ]]; then
             echo '✅ SSL certificate files found in container'
-            echo 'CA certificate:'
-            openssl x509 -in /etc/mysql/conf.d/ca.crt -text -noout | head -10
-            echo 'Server certificate:'
-            openssl x509 -in /etc/mysql/conf.d/server.crt -text -noout | head -10
-            echo 'Server key:'
+            echo 'CA certificate info:'
+            openssl x509 -in /etc/mysql/conf.d/ca.crt -text -noout | head -5
+            echo 'Server certificate info:'
+            openssl x509 -in /etc/mysql/conf.d/server.crt -text -noout | head -5
+            echo 'Server key validation:'
             openssl rsa -in /etc/mysql/conf.d/server.key -check -noout
             echo '✅ SSL certificates validation completed'
         else
             echo '❌ SSL certificate files NOT found in container'
             echo 'Expected files: ca.crt, server.crt, server.key'
+            echo 'Files actually present:'
+            find /etc/mysql/conf.d/ -type f -exec ls -la {} \;
             exit 1
         fi
     "; then
