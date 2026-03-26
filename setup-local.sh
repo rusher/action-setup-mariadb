@@ -845,10 +845,13 @@ if [[ -n "${SETUP_CONFIGURATION_FILE}" && -f "${SETUP_CONFIGURATION_FILE}" ]]; t
                 MAIN_CONFIG_PATHS=(
                     "$(brew --prefix)/etc/my.cnf"
                     "/usr/local/etc/my.cnf"
-                    "$(brew --prefix mariadb)/etc/my.cnf" 2>/dev/null
-                    "$(brew --prefix mariadb@10.11)/etc/my.cnf" 2>/dev/null
-                    "$(brew --prefix mariadb@10.6)/etc/my.cnf" 2>/dev/null
                 )
+                # Try to find version-specific MariaDB installations
+                for mariadb_version in mariadb mariadb@10.11 mariadb@10.6; do
+                    if brew --prefix "$mariadb_version" &>/dev/null; then
+                        MAIN_CONFIG_PATHS+=("$(brew --prefix "$mariadb_version")/etc/my.cnf")
+                    fi
+                done
                 for config_path in "${MAIN_CONFIG_PATHS[@]}"; do
                     if [[ -f "$config_path" ]]; then
                         CONFIG_DIR=$(dirname "$config_path")/mariadb.conf.d
