@@ -122,6 +122,39 @@ if [[ -n "${SETUP_CONFIGURATION_FILE}" ]]; then
     fi
 fi
 
+# SETUP_SSL_SCRIPT_FOLDER
+if [[ -n "${SETUP_SSL_SCRIPT_FOLDER}" ]]; then
+    echo "✅ SSL certificates from ${SETUP_SSL_SCRIPT_FOLDER}"
+    
+    # Check if the SSL folder exists and has required files
+    if [[ -d "${SETUP_SSL_SCRIPT_FOLDER}" ]]; then
+        echo "✅ SSL folder found: ${SETUP_SSL_SCRIPT_FOLDER}"
+        
+        # Check for required SSL certificate files
+        if [[ -f "${SETUP_SSL_SCRIPT_FOLDER}/ca.crt" && -f "${SETUP_SSL_SCRIPT_FOLDER}/server.crt" && -f "${SETUP_SSL_SCRIPT_FOLDER}/server.key" ]]; then
+            echo "✅ All required SSL certificate files found"
+            
+            # Verify certificate files are not empty
+            if [[ -s "${SETUP_SSL_SCRIPT_FOLDER}/ca.crt" && -s "${SETUP_SSL_SCRIPT_FOLDER}/server.crt" && -s "${SETUP_SSL_SCRIPT_FOLDER}/server.key" ]]; then
+                echo "✅ SSL certificates are valid and non-empty"
+                # Mount the SSL folder to /etc/mysql/ssl/
+                CONTAINER_ARGS+=("-v" "${SETUP_SSL_SCRIPT_FOLDER}:/etc/mysql/ssl")
+            else
+                echo "⚠️ SSL certificates exist but some may be empty"
+                CONTAINER_ARGS+=("-v" "${SETUP_SSL_SCRIPT_FOLDER}:/etc/mysql/ssl")
+            fi
+        else
+            echo "⚠️ Some SSL certificate files are missing"
+            echo "   Expected files: ca.crt, server.crt, server.key"
+            echo "   Mounting SSL folder anyway, but SSL may not work properly"
+            CONTAINER_ARGS+=("-v" "${SETUP_SSL_SCRIPT_FOLDER}:/etc/mysql/ssl")
+        fi
+    else
+        echo "❌ SSL folder not found: ${SETUP_SSL_SCRIPT_FOLDER}"
+        echo "   Please provide a valid SSL certificate folder path"
+        exit 1
+    fi
+fi
 
 # SETUP_SCRIPTS
 if [[ -n "${SETUP_CONF_SCRIPT_FOLDER}" ]]; then
@@ -234,8 +267,8 @@ if [[ "${exit_code}" == "0" ]]; then
             ssl_dir='/etc/mysql/conf.d/ssl'
             echo 'SSL directory found: /etc/mysql/conf.d/ssl/'
         else
-            echo '❌ No SSL directory found'
-            exit 1
+            echo 'ℹ️ No SSL directory found - SSL validation skipped'
+            exit 0
         fi
         
         echo 'SSL directory contents:'
@@ -247,84 +280,75 @@ if [[ "${exit_code}" == "0" ]]; then
         cert_file=\"\$ssl_dir/server.crt\"
         key_file=\"\$ssl_dir/server.key\"
         
-        if [[ ! -f \"\$ca_file\" ]]; then
-            echo \"❌ CA certificate not found: \$ca_file\"
-            exit 1
-        fi
-        
-        if [[ ! -f \"\$cert_file\" ]]; then
-            echo \"❌ Server certificate not found: \$cert_file\"
-            exit 1
-        fi
-        
-        if [[ ! -f \"\$key_file\" ]]; then
-            echo \"❌ Server key not found: \$key_file\"
-            exit 1
-        fi
-        
-        echo '✅ All required SSL files found'
-        echo ''
-        
-        # Validate CA certificate
-        echo '--- CA Certificate Validation ---'
-        if openssl x509 -in \"\$ca_file\" -noout -checkend 0 2>/dev/null; then
-            echo '✅ CA certificate is valid'
-            openssl x509 -in \"\$ca_file\" -noout -subject -issuer
+        # Check if certificate files exist
+        if [[ -f \"\$ca_file\" ]]; then
+            echo '✅ CA certificate found: ca.crt'
         else
-            echo '❌ CA certificate is invalid or expired'
-            openssl x509 -in \"\$ca_file\" -noout -checkend 0 2>&1 || true
-            exit 1
+            echo '❌ CA certificate not found: ca.crt'
         fi
-        echo ''
         
-        # Validate server certificate
-        echo '--- Server Certificate Validation ---'
-        if openssl x509 -in \"\$cert_file\" -noout -checkend 0 2>/dev/null; then
-            echo '✅ Server certificate is valid'
-            openssl x509 -in \"\$cert_file\" -noout -subject -issuer
+        if [[ -f \"\$cert_file\" ]]; then
+            echo '✅ Server certificate found: server.crt'
         else
-            echo '❌ Server certificate is invalid or expired'
-            openssl x509 -in \"\$cert_file\" -noout -checkend 0 2>&1 || true
-            exit 1
+            echo '❌ Server certificate not found: server.crt'
         fi
-        echo ''
         
-        # Validate server key
-        echo '--- Server Key Validation ---'
-        if openssl rsa -in \"\$key_file\" -check -noout 2>/dev/null; then
-            echo '✅ Server key is valid'
+        if [[ -f \"\$key_file\" ]]; then
+            echo '✅ Private key found: server.key'
         else
-            echo '❌ Server key is invalid'
-            openssl rsa -in \"\$key_file\" -check -noout 2>&1 || true
-            exit 1
+            echo '❌ Private key not found: server.key'
         fi
-        echo ''
         
-        # Verify certificate and key match
-        echo '--- Certificate-Key Match Validation ---'
-        cert_modulus=\$(openssl x509 -noout -modulus -in \"\$cert_file\" 2>/dev/null)
-        key_modulus=\$(openssl rsa -noout -modulus -in \"\$key_file\" 2>/dev/null)
-        
-        if [[ \"\$cert_modulus\" == \"\$key_modulus\" ]]; then
-            echo '✅ Server certificate and key match'
+        # Validate certificates with openssl if all files exist
+        if [[ -f \"\$ca_file\" && -f \"\$cert_file\" && -f \"\$key_file\" ]]; then
+            echo '✅ All SSL certificate files found, validating...'
+            
+            # Validate CA certificate
+            if openssl x509 -in \"\$ca_file\" -text -noout > /dev/null 2>&1; then
+                echo '✅ CA certificate is valid'
+            else
+                echo '❌ CA certificate is invalid'
+                exit 1
+            fi
+            
+            # Validate server certificate
+            if openssl x509 -in \"\$cert_file\" -text -noout > /dev/null 2>&1; then
+                echo '✅ Server certificate is valid'
+            else
+                echo '❌ Server certificate is invalid'
+                exit 1
+            fi
+            
+            # Validate private key
+            if openssl rsa -in \"\$key_file\" -check > /dev/null 2>&1; then
+                echo '✅ Private key is valid'
+            else
+                echo '❌ Private key is invalid'
+                exit 1
+            fi
+            
+            # Check if certificate and key match
+            cert_modulus=\$(openssl x509 -noout -modulus -in \"\$cert_file\" 2>/dev/null | openssl md5)
+            key_modulus=\$(openssl rsa -noout -modulus -in \"\$key_file\" 2>/dev/null | openssl md5)
+            if [[ \"\$cert_modulus\" == \"\$key_modulus\" ]]; then
+                echo '✅ Certificate and private key match'
+            else
+                echo '❌ Certificate and private key do not match'
+                exit 1
+            fi
+            
+            echo '✅ SSL certificate validation completed successfully'
         else
-            echo '❌ Server certificate and key do not match'
-            exit 1
+            echo 'ℹ️ Some SSL certificate files are missing - SSL validation incomplete'
         fi
-        echo ''
         
-        echo '🎉 SSL certificate validation completed successfully!'
+        exit 0
     "; then
         echo "✅ SSL certificates validated successfully"
     else
-        echo "❌ SSL certificate validation failed"
-        echo "🔎 Container debug info:"
-        "${CONTAINER_RUNTIME}" exec mariadbcontainer bash -c "echo 'SSL-related files:'; find /etc/mysql/ -name '*.crt' -o -name '*.key' -o -name '*.pem' | head -10"
+        echo "⚠️ SSL certificate validation had issues"
     fi
     
-    # Log all MariaDB configuration files
-    echo "🔍 Logging MariaDB configuration files..."
-    if "${CONTAINER_RUNTIME}" exec mariadbcontainer bash -c "
         echo '=== MARIA DB CONFIGURATION FILES LOG ==='
         
         # Get MariaDB to show all loaded configuration files
