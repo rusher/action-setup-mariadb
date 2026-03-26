@@ -344,66 +344,35 @@ if [[ "${exit_code}" == "0" ]]; then
             echo ''
             echo '--- Processing !includedir directives from /etc/my.cnf ---'
             # Extract includedir paths from my.cnf - handle various formats
-            included_dirs=$(grep -E '^\s*!includedir' /etc/my.cnf 2>/dev/null | awk '{print $2}' || true)
-            if [[ -n \"\$included_dirs\" ]]; then
-                echo \"Found includedir paths: \$included_dirs\"
-                echo ''
-                for dir in \$included_dirs; do
-                    echo \"=== Contents of \$dir ===\"
-                    if [[ -d \"\$dir\" ]]; then
-                        ls -la \"\$dir\"
-                        echo ''
-                        echo 'Configuration files in this directory:'
-                        find \"\$dir\" -name '*.cnf' -o -name '*.conf' | sort | while read conf_file; do
-                            echo \"--- \$conf_file ---\"
-                            if [[ -f \"\$conf_file\" ]]; then
-                                cat \"\$conf_file\"
-                            else
-                                echo 'File does not exist'
-                            fi
+            echo 'Manual processing of !includedir lines:'
+            # Read the file line by line and extract !includedir paths
+            while IFS= read -r line; do
+                if [[ \"\$line\" == *!includedir* ]]; then
+                    # Extract the path after !includedir
+                    path=\$(echo \"\$line\" | sed 's/.*!includedir[[:space:]]*//' | sed 's/[[:space:]]*$//')
+                    if [[ -n \"\$path\" ]]; then
+                        echo \"Found includedir: \$path\"
+                        echo \"=== Contents of \$path ===\"
+                        if [[ -d \"\$path\" ]]; then
+                            ls -la \"\$path\"
                             echo ''
-                        done
-                    else
-                        echo \"Directory \$dir does not exist\"
-                    fi
-                    echo ''
-                done
-            else
-                echo 'No !includedir directives found in /etc/my.cnf'
-                echo 'Trying alternative detection...'
-                # Try to find any line with !includedir
-                all_includedir_lines=$(grep -n '!includedir' /etc/my.cnf 2>/dev/null || true)
-                if [[ -n \"\$all_includedir_lines\" ]]; then
-                    echo \"Found !includedir lines: \$all_includedir_lines\"
-                    # Extract paths using sed
-                    included_dirs=$(grep '!includedir' /etc/my.cnf 2>/dev/null | sed 's/.*!includedir[[:space:]]*//' | sed 's/[[:space:]]*$//' || true)
-                    echo \"Extracted paths: \$included_dirs\"
-                    if [[ -n \"\$included_dirs\" ]]; then
-                        for dir in \$included_dirs; do
-                            echo \"=== Contents of \$dir ===\"
-                            if [[ -d \"\$dir\" ]]; then
-                                ls -la \"\$dir\"
+                            echo 'Configuration files in this directory:'
+                            find \"\$path\" -name '*.cnf' -o -name '*.conf' | sort | while read conf_file; do
+                                echo \"--- \$conf_file ---\"
+                                if [[ -f \"\$conf_file\" ]]; then
+                                    cat \"\$conf_file\"
+                                else
+                                    echo 'File does not exist'
+                                fi
                                 echo ''
-                                echo 'Configuration files in this directory:'
-                                find \"\$dir\" -name '*.cnf' -o -name '*.conf' | sort | while read conf_file; do
-                                    echo \"--- \$conf_file ---\"
-                                    if [[ -f \"\$conf_file\" ]]; then
-                                        cat \"\$conf_file\"
-                                    else
-                                        echo 'File does not exist'
-                                    fi
-                                    echo ''
-                                done
-                            else
-                                echo \"Directory \$dir does not exist\"
-                            fi
-                            echo ''
-                        done
+                            done
+                        else
+                            echo \"Directory \$path does not exist\"
+                        fi
+                        echo ''
                     fi
-                else
-                    echo 'No !includedir lines found at all'
                 fi
-            fi
+            done < /etc/my.cnf
         else
             echo 'File /etc/my.cnf does not exist'
         fi
