@@ -99,29 +99,38 @@ if [[ -n "${SETUP_PASSWORD}" ]]; then
 fi
 
 # SETUP_SCRIPTS
-if [[ -n "${SETUP_CONF_SCRIPT_FOLDER}" ]]; then
-    echo "✅ setup scripts from ${SETUP_CONF_SCRIPT_FOLDER}"
+if [[ -n "${SETUP_SSL_SCRIPT_FOLDER}" ]]; then
+    echo "✅ setup scripts from ${SETUP_SSL_SCRIPT_FOLDER}"
     
     # Check if SSL certificate files exist in the conf script folder
-    if [[ -f "${SETUP_CONF_SCRIPT_FOLDER}/ca.crt" && -f "${SETUP_CONF_SCRIPT_FOLDER}/server.crt" && -f "${SETUP_CONF_SCRIPT_FOLDER}/server.key" ]]; then
-        echo "✅ SSL certificates found in ${SETUP_CONF_SCRIPT_FOLDER}"
+    if [[ -f "${SETUP_SSL_SCRIPT_FOLDER}/ca.crt" && -f "${SETUP_SSL_SCRIPT_FOLDER}/server.crt" && -f "${SETUP_SSL_SCRIPT_FOLDER}/server.key" ]]; then
+        echo "✅ SSL certificates found in ${SETUP_SSL_SCRIPT_FOLDER}"
         
         # Verify SSL certificates are readable and not empty
-        if [[ -s "${SETUP_CONF_SCRIPT_FOLDER}/ca.crt" && -s "${SETUP_CONF_SCRIPT_FOLDER}/server.crt" && -s "${SETUP_CONF_SCRIPT_FOLDER}/server.key" ]]; then
+        if [[ -s "${SETUP_SSL_SCRIPT_FOLDER}/ca.crt" && -s "${SETUP_SSL_SCRIPT_FOLDER}/server.crt" && -s "${SETUP_SSL_SCRIPT_FOLDER}/server.key" ]]; then
             echo "✅ SSL certificates are valid and non-empty"
             # Mount certificates to a subdirectory to avoid conflicts with existing config files
-            CONTAINER_ARGS+=("-v" "${SETUP_CONF_SCRIPT_FOLDER}:/etc/mysql/conf.d/ssl")
+            CONTAINER_ARGS+=("-v" "${SETUP_SSL_SCRIPT_FOLDER}:/etc/mysql/ssl")
         else
             echo "⚠️ SSL certificates exist but some may be empty"
-            CONTAINER_ARGS+=("-v" "${SETUP_CONF_SCRIPT_FOLDER}:/etc/mysql/conf.d/ssl")
+            CONTAINER_ARGS+=("-v" "${SETUP_SSL_SCRIPT_FOLDER}:/etc/mysql/ssl")
         fi
     else
-        echo "⚠️ SSL certificates not found in ${SETUP_CONF_SCRIPT_FOLDER}"
+        echo "⚠️ SSL certificates not found in ${SETUP_SSL_SCRIPT_FOLDER}"
         echo "   Expected files: ca.crt, server.crt, server.key"
         echo "   Mounting configuration folder anyway, but SSL may not work properly"
-        CONTAINER_ARGS+=("-v" "${SETUP_CONF_SCRIPT_FOLDER}:/etc/mysql/conf.d/ssl")
+        CONTAINER_ARGS+=("-v" "${SETUP_SSL_SCRIPT_FOLDER}:/etc/mysql/ssl")
     fi
 fi
+
+
+# SETUP_SCRIPTS
+if [[ -n "${SETUP_CONF_SCRIPT_FOLDER}" ]]; then
+    echo "✅ setup scripts from ${SETUP_CONF_SCRIPT_FOLDER}"
+    CONTAINER_ARGS+=("-v" "${SETUP_CONF_SCRIPT_FOLDER}:/etc/mysql/conf.d")
+fi
+
+
 
 # STARTUP_SCRIPTS
 if [[ -n "${SETUP_INIT_SCRIPT_FOLDER}" ]]; then
