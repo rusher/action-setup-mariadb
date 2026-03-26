@@ -334,7 +334,48 @@ if [[ "${exit_code}" == "0" ]]; then
         echo ''
         
         echo '--- All configuration files in /etc/mysql/ ---'
-        find /etc/mysql/ -name '*.cnf' -o -name '*.conf' | grep -v ssl | sort | while read conf_file; do
+        echo 'Checking /etc/mysql/ directory structure:'
+        ls -la /etc/mysql/ 2>/dev/null || echo 'Directory /etc/mysql/ not found'
+        echo ''
+        
+        echo '=== /etc/my.cnf (MariaDB reads this by default) ==='
+        if [[ -f /etc/my.cnf ]]; then
+            cat /etc/my.cnf
+        else
+            echo 'File /etc/my.cnf does not exist'
+        fi
+        echo ''
+        
+        echo '=== ~/.my.cnf (MariaDB reads this by default) ==='
+        if [[ -f ~/.my.cnf ]]; then
+            cat ~/.my.cnf
+        else
+            echo 'File ~/.my.cnf does not exist'
+        fi
+        echo ''
+        
+        echo 'Checking /etc/mysql/conf.d/ directory (NOT read by default):'
+        if [[ -d /etc/mysql/conf.d ]]; then
+            echo 'conf.d directory exists with contents:'
+            ls -la /etc/mysql/conf.d/
+            echo ''
+            echo 'Configuration files in conf.d (will NOT be loaded by default):'
+            find /etc/mysql/conf.d/ -name '*.cnf' -o -name '*.conf' | sort | while read conf_file; do
+                echo \"=== \$conf_file ===\"
+                if [[ -f \"\$conf_file\" ]]; then
+                    cat \"\$conf_file\"
+                else
+                    echo 'File does not exist'
+                fi
+                echo ''
+            done
+        else
+            echo 'conf.d directory does not exist'
+        fi
+        echo ''
+        
+        echo 'Other configuration files (excluding SSL):'
+        find /etc/mysql/ -name '*.cnf' -o -name '*.conf' | grep -v ssl | grep -v conf.d | sort | while read conf_file; do
             echo \"=== \$conf_file ===\"
             if [[ -f \"\$conf_file\" ]]; then
                 cat \"\$conf_file\"
