@@ -205,6 +205,10 @@ if [[ "${exit_code}" == "0" ]]; then
     elapsed=0
     connection_ready=false
     
+    # Inside the container, MariaDB always listens on port 3306
+    # The SETUP_PORT is only for host port mapping
+    INTERNAL_PORT=3306
+    
     while [[ $elapsed -lt $timeout ]]; do
 
         # MariaDB is ready, now test basic connection
@@ -212,24 +216,24 @@ if [[ "${exit_code}" == "0" ]]; then
         # Test connection based on authentication setup
         if [[ -n "${SETUP_ROOT_PASSWORD}" ]]; then
             # Test connection with root password using simple SELECT query
-            echo "🔍 Testing connection with: mariadb -h localhost -P ${SETUP_PORT} -u root -p*** -e 'SELECT 1;'"
-            if "${CONTAINER_RUNTIME}" exec mariadbcontainer mariadb -h localhost -P "${SETUP_PORT}" -u root -p"${SETUP_ROOT_PASSWORD}" -e "SELECT 1;"; then
+            echo "🔍 Testing connection with: mariadb -h localhost -P ${INTERNAL_PORT} -u root -p*** -e 'SELECT 1;'"
+            if "${CONTAINER_RUNTIME}" exec mariadbcontainer mariadb -h localhost -P "${INTERNAL_PORT}" -u root -p"${SETUP_ROOT_PASSWORD}" -e "SELECT 1;" 2>/dev/null; then
                 connection_ready=true
             else
                 echo "⚠️ Connection test failed, but MariaDB appears ready. Trying again..."
             fi
         elif [[ -n "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" && ( "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" == "1" || "${SETUP_ALLOW_EMPTY_ROOT_PASSWORD}" == "yes" ) ]]; then
             # Test connection with root and no password
-            echo "🔍 Testing connection with: mariadb -h localhost -P ${SETUP_PORT} -u root -e 'SELECT 1;'"
-            if "${CONTAINER_RUNTIME}" exec mariadbcontainer mariadb -h localhost -P "${SETUP_PORT}" -u root -e "SELECT 1;"; then
+            echo "🔍 Testing connection with: mariadb -h localhost -P ${INTERNAL_PORT} -u root -e 'SELECT 1;'"
+            if "${CONTAINER_RUNTIME}" exec mariadbcontainer mariadb -h localhost -P "${INTERNAL_PORT}" -u root -e "SELECT 1;" 2>/dev/null; then
                 connection_ready=true
             else
                 echo "⚠️ Connection test failed, but MariaDB appears ready. Trying again..."
             fi
         elif [[ -n "${SETUP_USER}" && -n "${SETUP_PASSWORD}" ]]; then
             # Test connection with setup user and password
-            echo "🔍 Testing connection with: mariadb -h localhost -P ${SETUP_PORT} -u ${SETUP_USER} -p*** -e 'SELECT 1;'"
-            if "${CONTAINER_RUNTIME}" exec mariadbcontainer mariadb -h localhost -P "${SETUP_PORT}" -u "${SETUP_USER}" -p"${SETUP_PASSWORD}" -e "SELECT 1;"; then
+            echo "🔍 Testing connection with: mariadb -h localhost -P ${INTERNAL_PORT} -u ${SETUP_USER} -p*** -e 'SELECT 1;'"
+            if "${CONTAINER_RUNTIME}" exec mariadbcontainer mariadb -h localhost -P "${INTERNAL_PORT}" -u "${SETUP_USER}" -p"${SETUP_PASSWORD}" -e "SELECT 1;" 2>/dev/null; then
                 connection_ready=true
             else
                 echo "⚠️ Connection test failed, but MariaDB appears ready. Trying again..."
