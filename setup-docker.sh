@@ -64,7 +64,7 @@ if [[ -z "${SETUP_PORT}" ]]; then
 fi
 echo "✅ port set to ${SETUP_PORT}"
 
-CONTAINER_ARGS+=("-p" "3306:${SETUP_PORT}")
+CONTAINER_ARGS+=("-p" "${SETUP_PORT}:3306")
 CONTAINER_ARGS+=("--name" "mariadbcontainer")
 
 # PASSWORD
@@ -149,7 +149,9 @@ fi
 
 ###############################################################################
 
+# Handle registry authentication
 if [[ -n "${SETUP_REGISTRY_USER}" && -n "${SETUP_REGISTRY_PASSWORD}" ]]; then
+  echo "🔐 Logging in to ${REGISTRY_PREFIX}..."
   CONTAINER_LOGIN_ARGS=()
   CONTAINER_LOGIN_ARGS+=("--username" "\"${SETUP_REGISTRY_USER}\"")
   CONTAINER_LOGIN_ARGS+=("--password" "\"${SETUP_REGISTRY_PASSWORD}\"")
@@ -166,6 +168,11 @@ else
   if [[ "${SETUP_REGISTRY}" == "docker.mariadb.com/enterprise-server" ]]; then
       echo "❌ registry user and/or password was not set"
       exit 1;
+  else
+      # For public registries, ensure no cached credentials interfere
+      echo "ℹ️ Using public registry ${REGISTRY_PREFIX} without authentication"
+      # Logout from registry to clear any cached invalid credentials
+      ${CONTAINER_RUNTIME} logout ${REGISTRY_PREFIX} 2>/dev/null || true
   fi
 fi
 
