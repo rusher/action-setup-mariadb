@@ -471,7 +471,7 @@ if not "%MARIADB_DATABASE%"=="" (
 )
 
 REM Set output variable for the action
-echo database-type=local >> %GITHUB_OUTPUT%
+echo database-type=local>> %GITHUB_OUTPUT%
 echo [SUCCESS] Database type exported: local
 
 echo ::endgroup::
