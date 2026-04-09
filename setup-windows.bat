@@ -474,6 +474,31 @@ REM Set output variable for the action
 echo database-type=local>> %GITHUB_OUTPUT%
 echo [SUCCESS] Database type exported: local
 
+REM Add MariaDB to PATH for subsequent steps
+echo [INFO] Adding MariaDB to system PATH...
+if not "!MYSQL_CMD!"=="" (
+    for %%F in ("!MYSQL_CMD!") do set "MARIADB_BIN_DIR=%%~dpF"
+    if exist "!MARIADB_BIN_DIR!" (
+        echo [INFO] Adding MariaDB bin directory to PATH: !MARIADB_BIN_DIR!
+        setx PATH "!PATH!;!MARIADB_BIN_DIR!" /M >nul 2>&1
+        echo [INFO] PATH updated for subsequent steps
+    )
+)
+
+REM Show server status and logs
+echo [INFO] MariaDB server status:
+sc query "MariaDB" | findstr "STATE"
+echo.
+echo [INFO] Recent MariaDB error logs (if available):
+if exist "C:\Program Files\MariaDB\data\*.err" (
+    type "C:\Program Files\MariaDB\data\*.err" | tail -20
+) else (
+    echo [INFO] No error log files found in default location
+)
+if exist "C:\ProgramData\MariaDB\data\*.err" (
+    type "C:\ProgramData\MariaDB\data\*.err" | tail -20
+)
+
 echo ::endgroup::
 
 REM End of main script execution
