@@ -695,36 +695,48 @@ configure_mariadb() {
         if [[ -n "${MARIADB_ROOT_PASSWORD}" ]]; then
             if [[ -n "$USE_SUDO" ]]; then
                 sudo "$MYSQL_CMD" -u root -p"${MARIADB_ROOT_PASSWORD}" -e "CREATE USER IF NOT EXISTS '${MARIADB_USER}'@'%' IDENTIFIED BY '${MARIADB_PASSWORD}';"
+                sudo "$MYSQL_CMD" -u root -p"${MARIADB_ROOT_PASSWORD}" -e "CREATE USER IF NOT EXISTS '${MARIADB_USER}'@'localhost' IDENTIFIED BY '${MARIADB_PASSWORD}';"
                 if [[ -n "${MARIADB_DATABASE}" ]]; then
                     sudo "$MYSQL_CMD" -u root -p"${MARIADB_ROOT_PASSWORD}" -e "GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE}\`.* TO '${MARIADB_USER}'@'%';"
+                    sudo "$MYSQL_CMD" -u root -p"${MARIADB_ROOT_PASSWORD}" -e "GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE}\`.* TO '${MARIADB_USER}'@'localhost';"
                 else
                     sudo "$MYSQL_CMD" -u root -p"${MARIADB_ROOT_PASSWORD}" -e "GRANT ALL PRIVILEGES ON *.* TO '${MARIADB_USER}'@'%';"
+                    sudo "$MYSQL_CMD" -u root -p"${MARIADB_ROOT_PASSWORD}" -e "GRANT ALL PRIVILEGES ON *.* TO '${MARIADB_USER}'@'localhost';"
                 fi
                 sudo "$MYSQL_CMD" -u root -p"${MARIADB_ROOT_PASSWORD}" -e "FLUSH PRIVILEGES;"
             else
                 "$MYSQL_CMD" -u root -p"${MARIADB_ROOT_PASSWORD}" -e "CREATE USER IF NOT EXISTS '${MARIADB_USER}'@'%' IDENTIFIED BY '${MARIADB_PASSWORD}';"
+                "$MYSQL_CMD" -u root -p"${MARIADB_ROOT_PASSWORD}" -e "CREATE USER IF NOT EXISTS '${MARIADB_USER}'@'localhost' IDENTIFIED BY '${MARIADB_PASSWORD}';"
                 if [[ -n "${MARIADB_DATABASE}" ]]; then
                     "$MYSQL_CMD" -u root -p"${MARIADB_ROOT_PASSWORD}" -e "GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE}\`.* TO '${MARIADB_USER}'@'%';"
+                    "$MYSQL_CMD" -u root -p"${MARIADB_ROOT_PASSWORD}" -e "GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE}\`.* TO '${MARIADB_USER}'@'localhost';"
                 else
                     "$MYSQL_CMD" -u root -p"${MARIADB_ROOT_PASSWORD}" -e "GRANT ALL PRIVILEGES ON *.* TO '${MARIADB_USER}'@'%';"
+                    "$MYSQL_CMD" -u root -p"${MARIADB_ROOT_PASSWORD}" -e "GRANT ALL PRIVILEGES ON *.* TO '${MARIADB_USER}'@'localhost';"
                 fi
                 "$MYSQL_CMD" -u root -p"${MARIADB_ROOT_PASSWORD}" -e "FLUSH PRIVILEGES;"
             fi
         else
             if [[ -n "$USE_SUDO" ]]; then
                 sudo "$MYSQL_CMD" -u root -e "CREATE USER IF NOT EXISTS '${MARIADB_USER}'@'%' IDENTIFIED BY '${MARIADB_PASSWORD}';"
+                sudo "$MYSQL_CMD" -u root -e "CREATE USER IF NOT EXISTS '${MARIADB_USER}'@'localhost' IDENTIFIED BY '${MARIADB_PASSWORD}';"
                 if [[ -n "${MARIADB_DATABASE}" ]]; then
                     sudo "$MYSQL_CMD" -u root -e "GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE}\`.* TO '${MARIADB_USER}'@'%';"
+                    sudo "$MYSQL_CMD" -u root -e "GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE}\`.* TO '${MARIADB_USER}'@'localhost';"
                 else
                     sudo "$MYSQL_CMD" -u root -e "GRANT ALL PRIVILEGES ON *.* TO '${MARIADB_USER}'@'%';"
+                    sudo "$MYSQL_CMD" -u root -e "GRANT ALL PRIVILEGES ON *.* TO '${MARIADB_USER}'@'localhost';"
                 fi
                 sudo "$MYSQL_CMD" -u root -e "FLUSH PRIVILEGES;"
             else
                 "$MYSQL_CMD" -u root -e "CREATE USER IF NOT EXISTS '${MARIADB_USER}'@'%' IDENTIFIED BY '${MARIADB_PASSWORD}';"
+                "$MYSQL_CMD" -u root -e "CREATE USER IF NOT EXISTS '${MARIADB_USER}'@'localhost' IDENTIFIED BY '${MARIADB_PASSWORD}';"
                 if [[ -n "${MARIADB_DATABASE}" ]]; then
                     "$MYSQL_CMD" -u root -e "GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE}\`.* TO '${MARIADB_USER}'@'%';"
+                    "$MYSQL_CMD" -u root -e "GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE}\`.* TO '${MARIADB_USER}'@'localhost';"
                 else
                     "$MYSQL_CMD" -u root -e "GRANT ALL PRIVILEGES ON *.* TO '${MARIADB_USER}'@'%';"
+                    "$MYSQL_CMD" -u root -e "GRANT ALL PRIVILEGES ON *.* TO '${MARIADB_USER}'@'localhost';"
                 fi
                 "$MYSQL_CMD" -u root -e "FLUSH PRIVILEGES;"
             fi
