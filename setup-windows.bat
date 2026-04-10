@@ -38,13 +38,23 @@ if not "%SETUP_TAG%"=="" (
             echo [INFO] Partial version detected ^(%SETUP_TAG%^), finding latest patch version...
             call :FindLatestPatchVersion "%SETUP_TAG%" MARIADB_VERSION
             if "!MARIADB_VERSION!"=="" (
-                echo [ERROR] Could not find any versions matching %SETUP_TAG%
+                echo [ERROR] Could not find any MariaDB versions matching pattern %SETUP_TAG%.x in Chocolatey
+                echo [ERROR] Please check available versions with: choco search mariadb --exact --all-versions
                 exit /b 1
             )
             echo [INFO] Using latest patch version: !MARIADB_VERSION!
         ) else (
             set MARIADB_VERSION=%SETUP_TAG%
             echo [INFO] MariaDB version set to !MARIADB_VERSION!
+            REM Verify the exact version exists in Chocolatey before attempting install
+            echo [INFO] Verifying version %SETUP_TAG% exists in Chocolatey...
+            choco search mariadb --exact --version=%SETUP_TAG% >nul 2>&1
+            if !errorlevel! neq 0 (
+                echo [ERROR] MariaDB version %SETUP_TAG% not found in Chocolatey
+                echo [ERROR] Please check available versions with: choco search mariadb --exact --all-versions
+                exit /b 1
+            )
+            echo [INFO] Version %SETUP_TAG% verified in Chocolatey
         )
     ) else (
         echo [INFO] Using latest MariaDB version
@@ -157,8 +167,10 @@ echo [INFO] No existing MariaDB installation detected, proceeding with installat
 REM Install MariaDB
 echo Installing MariaDB using Chocolatey...
 if not "%MARIADB_VERSION%"=="" (
+    echo [INFO] Installing MariaDB version %MARIADB_VERSION%
     choco install mariadb --version=%MARIADB_VERSION% -y
 ) else (
+    echo [INFO] Installing latest MariaDB version...
     choco install mariadb -y
 )
 if !errorlevel! neq 0 (
@@ -535,27 +547,43 @@ set "VERSION_PATTERN=!VERSION_PATTERN: =!"
 set "RETURN_VAR=%~2"
 set "LATEST_VERSION="
 
-echo [INFO] Searching for latest !VERSION_PATTERN!.x version...
+echo [INFO] Searching for latest !VERSION_PATTERN!.x version from Chocolatey...
 
 REM Create temporary file for search results
 set "TEMP_FILE=%TEMP%\mariadb_versions_%RANDOM%.txt"
 
 REM Search for matching versions and save to temp file
+echo [DEBUG] Running: choco search mariadb --exact --all-versions
 choco search mariadb --exact --all-versions > "%TEMP_FILE%"
+echo [DEBUG] Search results saved to %TEMP_FILE%
+
+REM Show first few lines of search results for debugging
+echo [DEBUG] First 10 lines of search results:
+head -10 "%TEMP_FILE%" 2>nul || type "%TEMP_FILE%" | findstr /n "." | findstr "^[1-9]:" | findstr "^1:\|^2:\|^3:\|^4:\|^5:\|^6:\|^7:\|^8:\|^9:\|^10:"
 
 REM Parse versions that match the pattern
 set "SEARCH_PATTERN=mariadb !VERSION_PATTERN!."
+echo [DEBUG] Searching for pattern: !SEARCH_PATTERN!
+
 for /f "tokens=2" %%v in ('findstr /c:"!SEARCH_PATTERN!" "%TEMP_FILE%"') do (
     set "CURRENT_VERSION=%%v"
     REM Remove [Approved] and other suffixes
     for /f "tokens=1" %%c in ("!CURRENT_VERSION!") do (
         set "CLEAN_VERSION=%%c"
+        echo [DEBUG] Found version: !CLEAN_VERSION!
         REM Simple comparison - since Chocolatey lists versions in descending order, 
         REM the first match is the latest
         if "!LATEST_VERSION!"=="" (
             set "LATEST_VERSION=!CLEAN_VERSION!"
+            echo [INFO] Selected latest version: !LATEST_VERSION!
         )
     )
+)
+
+if "!LATEST_VERSION!"=="" (
+    echo [WARN] No versions found matching pattern !VERSION_PATTERN!.x
+    echo [INFO] Available MariaDB versions from Chocolatey:
+    type "%TEMP_FILE%" | findstr "mariadb" | head -20
 )
 
 REM Cleanup temp file
