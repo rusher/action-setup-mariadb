@@ -103,6 +103,13 @@ install_mariadb() {
     case $PKG_MANAGER in
         "brew")
             echo "Installing MariaDB using Homebrew..."
+            # GitHub macOS runner images ship third-party taps (e.g. aws/tap) that recent
+            # Homebrew versions ignore until trusted, warning about it on every command.
+            # MariaDB comes from homebrew/core, so those taps are not needed: remove them.
+            for tap in $(brew tap 2>/dev/null | grep -v '^homebrew/' || true); do
+                echo "Removing unused Homebrew tap ${tap}"
+                brew untap "${tap}" 2>/dev/null || true
+            done
             if [[ -n "${MARIADB_VERSION}" ]]; then
                 brew install mariadb@"${MARIADB_VERSION}"
             else
